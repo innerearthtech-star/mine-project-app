@@ -9,7 +9,7 @@ export const CONFIG = {
 
   // Code that unlocks the private "My Job" tab (billing / runs / hours).
   // Change this to anything you like before sharing the app.
-  OWNER_CODE: 'innerearth',
+  OWNER_CODE: 'Wackers1',
 
   // Shown until a mine/project name is set in Settings.
   DEFAULT_PROJECT_NAME: 'Mine',
