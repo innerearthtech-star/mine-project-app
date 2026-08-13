@@ -48,6 +48,7 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
 .welcome-card h1 { font-size: 28px; letter-spacing: -0.5px; }
 .welcome-sub { color: var(--muted); margin: 6px 0 22px; }
 .welcome-row { display: flex; gap: 10px; }
+.welcome-row input { flex: 1; min-width: 0; } /* let both shrink on 375px */
 .welcome-card form input {
   width: 100%; padding: 14px 16px; font-size: 16px;
   background: var(--card); color: var(--text);

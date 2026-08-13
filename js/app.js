@@ -1,6 +1,6 @@
 // ── Boot, welcome screen, tab navigation, header status ────────────
 
-import { $, $$, esc, on, toast, normalizePhone } from './util.js';
+import { $, $$, esc, on, toast, normalizePhone, closeSheet, closeModal } from './util.js';
 import { CONFIG } from './config.js';
 import { DB } from './db.js';
 import { S, loadAll, saveProfile, projectName, iAmRemoved } from './store.js';
@@ -59,6 +59,9 @@ async function boot() {
 }
 
 function showWelcome({ removed = false } = {}) {
+  // tear down any open well sheet / dialog before returning to sign-up
+  closeSheet();
+  closeModal();
   const wrap = $('#welcome');
   wrap.classList.add('show');
   $('#welcome-title').textContent = `${projectName()} Project`;

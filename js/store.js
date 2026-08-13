@@ -58,7 +58,17 @@ export function findRow(table, key) {
 // ── Writes (local user actions) ────────────────────────────────────
 let outboxSeq = 0; // tie-breaker so same-millisecond writes push in order
 export async function save(table, row) {
-  row.updated_at = nowISO();
+  // Monotonic timestamp: a deliberate local edit must always out-rank the
+  // value the row already carries — even if that value was stamped by
+  // another device whose clock runs ahead of this one. Without this, a
+  // re-registering removed user on a slow clock could lose to the owner's
+  // newer "deleted" row and get bounced to sign-up on a loop.
+  const prev = findRow(table, keyOf(table, row));
+  let ts = nowISO();
+  if (prev && String(prev.updated_at || '') >= ts) {
+    ts = new Date(Date.parse(prev.updated_at) + 1).toISOString();
+  }
+  row.updated_at = ts;
   putMem(table, row);
   await DB.putAll([
     [LOCAL_STORE(table), row],
