@@ -2,7 +2,7 @@
 
 import {
   $, $$, esc, sheet, closeSheet, modalForm, confirmDlg, toast, viewPhoto,
-  fmtDateTime, compressImage, uuid, isIOS, toLocalInput, nowISO,
+  fmtDateTime, fmtFt, compressImage, uuid, isIOS, toLocalInput, nowISO,
 } from './util.js';
 import {
   S, findRow, save, softDelete, notesFor, newNote, newRun, addPhotoBlob, photoURL, videosFor,
@@ -23,20 +23,30 @@ export async function openWell(id) {
   const pending = []; // composer photo attachments: {path, blob, url}
   const el = sheet(`
     <div class="well-head">
-      <div>
+      <div class="well-head-main">
         <h3 class="well-name">${esc(b.name)} <button class="icon-btn" id="w-rename" title="Rename">${ic('pencil')}</button></h3>
         <div class="well-meta">Added by ${esc(b.created_by || '?')} · ${fmtDateTime(b.created_at)}</div>
         <div class="well-meta mono">${b.lat.toFixed(6)}, ${b.lng.toFixed(6)}</div>
       </div>
+      <button class="icon-btn sheet-x" id="w-close" title="Close">${ic('x')}</button>
     </div>
 
     <div class="well-actions">
       <a class="btn primary" id="w-gmaps" target="_blank" rel="noopener"
          href="https://www.google.com/maps/dir/?api=1&destination=${b.lat},${b.lng}&travelmode=driving">
          ${ic('nav')} Directions</a>
+      <button class="btn" id="w-share">${ic('share')} Send</button>
       ${isIOS() ? `<a class="btn" target="_blank" rel="noopener"
          href="https://maps.apple.com/?daddr=${b.lat},${b.lng}">${ic('apple')} Apple Maps</a>` : ''}
       ${S.owner ? `<button class="btn" id="w-run">${ic('bolt')} Log run</button>` : ''}
+    </div>
+
+    <div class="well-data">
+      <div class="well-data-head"><h4>Well data</h4>
+        <button class="btn small ghost" id="w-depths">${ic('pencil')} Edit</button></div>
+      <div class="depth-row"><span>Roof level</span><b>${b.roof_level ? esc(fmtFt(b.roof_level)) : '—'}</b></div>
+      <div class="depth-row"><span>Bottom of casing</span><b>${b.casing_bottom ? esc(fmtFt(b.casing_bottom)) : '—'}</b></div>
+      <div class="depth-row"><span>Mine floor</span><b>${b.mine_floor ? esc(fmtFt(b.mine_floor)) : '—'}</b></div>
     </div>
 
     <div class="well-photo-block">
@@ -66,6 +76,8 @@ export async function openWell(id) {
       <input type="file" id="n-photo-input" accept="image/*" capture="environment" multiple hidden>
     </div>
     <div class="notes-list" id="notes-list"><div class="loading">…</div></div>
+
+    <button class="btn big ghost sheet-done" id="w-done">Done</button>
   `, { onClose: () => {
     pending.forEach(p => URL.revokeObjectURL(p.url));
     // stop any video still streaming inside the closed sheet
@@ -86,6 +98,43 @@ export async function openWell(id) {
     if (box) wireVideoCards(box, renderWellVideos);
   };
   renderWellVideos();
+
+  // close / done
+  $('#w-close', el).onclick = () => closeSheet();
+  $('#w-done', el).onclick = () => closeSheet();
+
+  // send location to someone (native share sheet, or copy the link)
+  $('#w-share', el).onclick = async () => {
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${b.lat},${b.lng}`;
+    const data = { title: b.name, text: `${b.name} — borehole location`, url };
+    if (navigator.share) {
+      try { await navigator.share(data); } catch { /* cancelled */ }
+    } else {
+      try { await navigator.clipboard.writeText(`${b.name}: ${url}`); toast('Location link copied', 'ok'); }
+      catch { toast('Could not share on this device', 'warn'); }
+    }
+  };
+
+  // well data (depths)
+  $('#w-depths', el).onclick = async () => {
+    const cur = findRow('boreholes', id);
+    const res = await modalForm({
+      title: 'Well data',
+      fields: [
+        { name: 'roof_level', label: 'Roof level (ft)', value: cur.roof_level || '', placeholder: 'e.g. 412' },
+        { name: 'casing_bottom', label: 'Bottom of casing (ft)', value: cur.casing_bottom || '', placeholder: 'e.g. 380' },
+        { name: 'mine_floor', label: 'Mine floor (ft)', value: cur.mine_floor || '', placeholder: 'e.g. 450' },
+      ],
+    });
+    if (!res) return;
+    await save('boreholes', {
+      ...findRow('boreholes', id),
+      roof_level: (res.roof_level || '').trim(),
+      casing_bottom: (res.casing_bottom || '').trim(),
+      mine_floor: (res.mine_floor || '').trim(),
+    });
+    openWell(id);
+  };
 
   // rename
   $('#w-rename', el).onclick = async () => {
@@ -248,6 +297,8 @@ function ic(name) {
     nav: '<path d="M3 11l19-9-9 19-2-8-8-2z"/>',
     apple: '<path d="M12 4c1-2 3-2 3-2s.2 2-1 3.5S11 7 11 7s-.2-1.8 1-3zM16.5 8c-1.7 0-2.4.9-3.5.9S11.2 8 9.5 8C7.3 8 5 9.9 5 13.4c0 3.6 2.6 7.6 4.3 7.6 1 0 1.4-.7 2.7-.7s1.7.7 2.7.7c1.8 0 4.3-4.1 4.3-5.9-2-.8-2.6-3.6-.6-4.9C17.6 8.5 16.5 8 16.5 8z" fill="currentColor" stroke="none"/>',
     bolt: '<path d="M13 2 3 14h7l-1 8 12-14h-8l1-6z"/>',
+    share: '<path d="M12 2v14M8 6l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
+    x: '<path d="M18 6 6 18M6 6l12 12"/>',
     camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
     move: '<path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>',
     trash: '<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>',

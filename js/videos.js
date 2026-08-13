@@ -21,6 +21,7 @@ let q = '';                // list search
 export function initVideos() {
   on('data:videos', renderVideoList);
   on('data:boreholes', () => { renderWellResults(); renderVideoList(); });
+  on('owner', renderVideosTab); // uploading is owner-only; re-render on unlock
   // a 10GB upload takes an hour+ — warn before the tab closes mid-flight
   window.addEventListener('beforeunload', e => {
     if (uploading || currentUpload) { e.preventDefault(); e.returnValue = ''; }
@@ -38,15 +39,14 @@ export function refreshUploadDefaults() {
 
 export function renderVideosTab() {
   const root = $('#view-videos .tab-body');
+  // Uploading is owner-only. Everyone can search and watch.
+  const canUpload = isConfigured() && S.owner;
   root.innerHTML = `
+    ${canUpload ? `
     <section class="card" id="upload-card">
-      <h4>Upload inspection video</h4>
-      ${!isConfigured() ? `
-        <div class="empty-hint">Connect Supabase first (see SETUP.md) — videos upload straight
-        to the cloud so the crew can watch them anytime.</div>
-      ` : `
+      <h4>Upload inspection</h4>
         <label class="field"><span>Borehole (add it on the map first)</span>
-          <input id="v-well" type="text" placeholder="Type to search wells…" autocomplete="off">
+          <input id="v-well" type="text" placeholder="Tap to pick a well…" autocomplete="off">
           <div id="v-well-results" class="picker-results"></div>
         </label>
         <label class="field"><span>Inspection date & time</span>
@@ -65,11 +65,10 @@ export function renderVideosTab() {
             <button class="btn small danger-ghost" id="v-abort">Cancel upload</button>
           </div>
         </div>
-        <button class="btn primary big" id="v-upload">Upload video</button>
+        <button class="btn primary big" id="v-upload">Upload</button>
         <div class="setting-hint">Uploads are resumable — if Starlink hiccups it picks up where
         it left off. Keep this page open until it finishes.</div>
-      `}
-    </section>
+    </section>` : ''}
 
     <div class="contacts-top">
       <input id="video-search" type="search" placeholder="Search videos by well…" autocomplete="off">
@@ -77,7 +76,7 @@ export function renderVideosTab() {
     <div id="video-list"></div>
   `;
 
-  if (isConfigured()) wireUpload(root);
+  if (canUpload) wireUpload(root);
   $('#video-search').oninput = debounce(e => {
     q = e.target.value.trim().toLowerCase();
     renderVideoList();
@@ -94,8 +93,11 @@ function renderWellResults() {
   // background borehole syncs shouldn't open it on their own
   if (document.activeElement !== input) return;
   const term = input.value.trim().toLowerCase();
-  if (selectedWell && input.value === selectedWell.name) { box.innerHTML = ''; return; }
-  const wells = activeBoreholes().filter(b => !term || b.name.toLowerCase().includes(term));
+  // Just re-focused a field that already holds the chosen well → show the
+  // full list again so they can switch; typing (which clears selectedWell)
+  // then filters live.
+  const showAll = selectedWell && input.value === selectedWell.name;
+  const wells = activeBoreholes().filter(b => showAll || !term || b.name.toLowerCase().includes(term));
   if (!wells.length) {
     box.innerHTML = `<div class="empty-hint">${activeBoreholes().length
       ? 'No well matches' : 'No wells yet — drop a pin on the map first'}</div>`;

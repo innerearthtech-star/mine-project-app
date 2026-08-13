@@ -1,6 +1,6 @@
 // ── Map tab: Esri imagery, borehole pins, GPS, search, add-pin ─────
 
-import { $, $$, esc, on, toast, sheet, closeSheet, modalForm, haversineM, fmtDist, debounce } from './util.js';
+import { $, $$, esc, on, toast, sheet, closeSheet, modalForm, haversineM, fmtDist, fmtFt, debounce } from './util.js';
 import { DB } from './db.js';
 import { S, activeBoreholes, newBorehole } from './store.js';
 import { openWell } from './wells.js';
@@ -19,21 +19,22 @@ export function initMap() {
 
   map = L.map('map', {
     zoomControl: false,
-    attributionControl: true,
+    attributionControl: false, // replaced by our own "i" button
     tap: false,
+    zoomSnap: 0.5,             // smoother pinch-zoom (lands on half levels)
+    zoomDelta: 0.5,
+    wheelPxPerZoomLevel: 90,
   });
-  map.attributionControl.setPrefix(false);
 
   // crossOrigin lets the service worker verify tile responses before
-  // caching them for offline use (no opaque-response quota padding)
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  // caching them for offline use (no opaque-response quota padding).
+  // keepBuffer/updateWhenZooming tuned so pan & pinch feel responsive.
+  const tileOpts = {
     maxZoom: 21, maxNativeZoom: 19, crossOrigin: true,
-    attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
-  }).addTo(map);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 21, maxNativeZoom: 19, crossOrigin: true,
-    attribution: 'Labels © Esri',
-  }).addTo(map);
+    keepBuffer: 4, updateWhenZooming: false, updateWhenIdle: false,
+  };
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', tileOpts).addTo(map);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', tileOpts).addTo(map);
 
   DB.kvGet('mapView').then(v => {
     if (v) map.setView(v.center, v.zoom);
@@ -50,6 +51,13 @@ export function initMap() {
       stopPlacing();
       cb(e.latlng);
     }
+  });
+
+  // wire the "Open well" button inside a pin's popup
+  map.on('popupopen', e => {
+    const node = e.popup._contentNode;
+    const btn = node && node.querySelector('[data-open]');
+    if (btn) btn.onclick = () => { map.closePopup(); openWell(btn.dataset.open); };
   });
 
   renderMarkers();
@@ -80,6 +88,24 @@ function pinIcon(b) {
   });
 }
 
+// Quick-look popup: name + key depths + a button into the full well
+function popupHTML(b) {
+  const d = [];
+  if (b.roof_level) d.push(`Roof <b>${esc(fmtFt(b.roof_level))}</b>`);
+  if (b.casing_bottom) d.push(`Casing <b>${esc(fmtFt(b.casing_bottom))}</b>`);
+  if (b.mine_floor) d.push(`Floor <b>${esc(fmtFt(b.mine_floor))}</b>`);
+  return `<div class="pin-pop">
+    <div class="pin-pop-name">${esc(b.name)}</div>
+    ${d.length ? `<div class="pin-pop-depths">${d.join('<span class="dot-sep">·</span>')}</div>`
+      : `<div class="pin-pop-empty">No well data yet</div>`}
+    <button class="pin-pop-open" data-open="${b.id}">Open well ›</button>
+  </div>`;
+}
+
+function markerSig(b) {
+  return `${b.name}|${b.roof_level || ''}|${b.casing_bottom || ''}|${b.mine_floor || ''}`;
+}
+
 function renderMarkers() {
   if (!map) return;
   const list = activeBoreholes();
@@ -88,20 +114,21 @@ function renderMarkers() {
     seen.add(b.id);
     const existing = markers.get(b.id);
     if (existing) {
-      // only touch the DOM when something actually changed
       if (existing._lat !== b.lat || existing._lng !== b.lng) {
         existing.setLatLng([b.lat, b.lng]);
         existing._lat = b.lat; existing._lng = b.lng;
       }
-      if (existing._name !== b.name) {
+      const sig = markerSig(b);
+      if (existing._sig !== sig) {
         existing.setIcon(pinIcon(b));
-        existing._name = b.name;
+        existing.setPopupContent(popupHTML(b));
+        existing._sig = sig;
       }
     } else {
       const m = L.marker([b.lat, b.lng], { icon: pinIcon(b) })
-        .addTo(map)
-        .on('click', () => openWell(b.id));
-      m._lat = b.lat; m._lng = b.lng; m._name = b.name;
+        .bindPopup(popupHTML(b), { className: 'pin-popup', offset: [0, -34], autoPanPadding: [24, 90] })
+        .addTo(map);
+      m._lat = b.lat; m._lng = b.lng; m._sig = markerSig(b);
       markers.set(b.id, m);
     }
   }
@@ -142,6 +169,7 @@ function drawMyPos() {
   if (!myMarker) {
     myMarker = L.marker(ll, {
       interactive: false,
+      zIndexOffset: -1000, // sit BELOW borehole pins so a well you're on stays visible
       icon: L.divIcon({ className: 'me-wrap', iconSize: [18, 18], iconAnchor: [9, 9], html: '<div class="me-dot"></div>' }),
     }).addTo(map);
     myCircle = L.circle(ll, { radius: myPos.accuracy, className: 'me-acc', interactive: false }).addTo(map);
@@ -151,7 +179,7 @@ function drawMyPos() {
   }
 }
 
-// ── Controls: locate, add pin, search ──────────────────────────────
+// ── Controls: locate, add pin, search, map info ────────────────────
 function wireControls() {
   $('#btn-locate').onclick = () => {
     if (myPos) {
@@ -165,10 +193,7 @@ function wireControls() {
   $('#btn-add-pin').onclick = () => {
     sheet(`
       <h3>Add borehole</h3>
-      <button class="btn primary big" id="add-here">
-        ${icon('crosshair')} Pin at my location
-        ${myPos ? `<span class="sub">±${Math.round(myPos.accuracy * 3.28)} ft accuracy</span>` : '<span class="sub">waiting for GPS…</span>'}
-      </button>
+      <button class="btn primary big" id="add-here">${icon('crosshair')} Pin at my location</button>
       <button class="btn big" id="add-tap">${icon('map')} Tap the map to place</button>
     `);
     $('#add-here').onclick = () => {
@@ -182,7 +207,11 @@ function wireControls() {
     };
   };
 
-  // Search
+  // Map info ("i") — keeps the Esri credit off the map until tapped
+  const infoBtn = $('#map-info');
+  if (infoBtn) infoBtn.onclick = () => $('#map-info-panel').classList.toggle('open');
+
+  // Search — opens the full well list on focus, filters as you type
   const input = $('#search-input');
   const results = $('#search-results');
   const render = () => {
@@ -208,11 +237,12 @@ function wireControls() {
       };
     });
   };
-  input.oninput = debounce(render, 120);
+  input.oninput = debounce(render, 100);
   input.onfocus = () => { $('#search-panel').classList.add('open'); render(); };
   $('#search-close').onclick = hideSearch;
   function hideSearch() {
     $('#search-panel').classList.remove('open');
+    input.value = '';
     input.blur();
   }
 
@@ -222,10 +252,12 @@ function wireControls() {
 export function armPlacing(cb, msg) {
   placing = cb;
   $('#placing-banner span').textContent = msg;
+  $('#view-map').classList.add('placing');
   $('#placing-banner').classList.add('show');
 }
 function stopPlacing() {
   placing = null;
+  $('#view-map').classList.remove('placing');
   $('#placing-banner').classList.remove('show');
 }
 

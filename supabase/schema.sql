@@ -9,12 +9,19 @@ create table if not exists boreholes (
   lat double precision not null,
   lng double precision not null,
   photo text,                         -- storage path of surface photo
+  roof_level text,                    -- well data (free text, usually feet)
+  casing_bottom text,
+  mine_floor text,
   created_by text,
   author_id text,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   deleted boolean default false
 );
+-- keep existing projects in step when re-running this file
+alter table boreholes add column if not exists roof_level text;
+alter table boreholes add column if not exists casing_bottom text;
+alter table boreholes add column if not exists mine_floor text;
 
 -- Shared: notes on each borehole (photos = array of storage paths)
 create table if not exists notes (

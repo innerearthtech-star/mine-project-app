@@ -70,6 +70,12 @@ export function fmtDist(m) {
   if (mi < 0.19) return `${Math.round(m * 3.28084)} ft`;
   return `${mi < 10 ? mi.toFixed(1) : Math.round(mi)} mi`;
 }
+// Depth values: append "ft" to a bare number, otherwise show as entered.
+export function fmtFt(v) {
+  if (v == null || v === '') return '';
+  const s = String(v).trim();
+  return /^\d+(\.\d+)?$/.test(s) ? `${s} ft` : s;
+}
 
 // ── Phone numbers ──────────────────────────────────────────────────
 // Return the 10 digits of a US cell, or null if it isn't a valid one.
