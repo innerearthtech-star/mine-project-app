@@ -48,12 +48,17 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
 .welcome-card h1 { font-size: 28px; letter-spacing: -0.5px; }
 .welcome-sub { color: var(--muted); margin: 6px 0 22px; }
 .welcome-row { display: flex; gap: 10px; }
-.welcome-row input { flex: 1; min-width: 0; } /* let both shrink on 375px */
+.welcome-row .wl { flex: 1; min-width: 0; } /* let both name fields shrink on 375px */
+.wl {
+  display: block; text-align: left;
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  margin-bottom: 10px;
+}
 .welcome-card form input {
   width: 100%; padding: 14px 16px; font-size: 16px;
   background: var(--card); color: var(--text);
   border: 1.5px solid var(--line); border-radius: var(--radius);
-  outline: none; margin-bottom: 10px;
+  outline: none; margin-top: 4px;
 }
 .welcome-card form input:focus { border-color: var(--accent); }
 .welcome-error {

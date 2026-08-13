@@ -32,12 +32,22 @@
       <p class="welcome-sub">Tell us who you are to get started</p>
       <form id="welcome-form">
         <div class="welcome-row">
-          <input id="w-first" type="text" placeholder="First name" autocomplete="given-name" maxlength="40" required>
-          <input id="w-last" type="text" placeholder="Last name" autocomplete="family-name" maxlength="40" required>
+          <label class="wl">First name
+            <input id="w-first" type="text" placeholder="e.g. John" autocomplete="given-name" maxlength="40" required>
+          </label>
+          <label class="wl">Last name
+            <input id="w-last" type="text" placeholder="e.g. Smith" autocomplete="family-name" maxlength="40" required>
+          </label>
         </div>
-        <input id="w-company" type="text" placeholder="Company" autocomplete="organization" maxlength="60" required>
-        <input id="w-position" type="text" placeholder="Position (e.g. Logging Engineer)" autocomplete="organization-title" maxlength="60" required>
-        <input id="w-phone" type="tel" inputmode="tel" placeholder="Cell number" autocomplete="tel" maxlength="20" required>
+        <label class="wl">Company
+          <input id="w-company" type="text" placeholder="Company you work for" autocomplete="organization" maxlength="60" required>
+        </label>
+        <label class="wl">Position
+          <input id="w-position" type="text" placeholder="e.g. Logging Engineer" autocomplete="organization-title" maxlength="60" required>
+        </label>
+        <label class="wl">Cell number
+          <input id="w-phone" type="tel" inputmode="tel" placeholder="e.g. (304) 555-0142" autocomplete="tel" maxlength="20" required>
+        </label>
         <div id="w-error" class="welcome-error" hidden></div>
         <button class="btn primary big" type="submit">Let's go</button>
       </form>

@@ -12,7 +12,7 @@ export const CONFIG = {
   OWNER_CODE: 'innerearth',
 
   // Shown until a mine/project name is set in Settings.
-  DEFAULT_PROJECT_NAME: 'Coal Mine',
+  DEFAULT_PROJECT_NAME: 'Mine',
 
   APP_VERSION: '1.0.0',
 };
