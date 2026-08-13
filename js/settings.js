@@ -1,8 +1,10 @@
 // ── Settings tab: project name, profile, connection, owner unlock ──
 
-import { $, esc, on, toast, confirmDlg, modalForm, sha256hex, fmtTime } from './util.js';
+import { $, $$, esc, on, toast, confirmDlg, modalForm, sha256hex, fmtTime, formatPhone, normalizePhone } from './util.js';
 import { CONFIG } from './config.js';
-import { S, projectName, setSetting, setProfile, unlockOwner, lockOwner } from './store.js';
+import {
+  S, projectName, setSetting, saveProfile, unlockOwner, lockOwner, activeUsers, removeUser,
+} from './store.js';
 import { syncState, kick } from './sync.js';
 
 export function initSettings() {
@@ -10,6 +12,25 @@ export function initSettings() {
   on('owner', renderSettings);
   on('profile', renderSettings);
   on('data:app_settings', renderSettings);
+  on('data:users', renderSettings);
+}
+
+function renderCrew() {
+  const users = activeUsers();
+  if (!users.length) return `<div class="empty-hint">No one yet.</div>`;
+  return users.map(u => {
+    const me = u.id === S.profile.id;
+    const tel = normalizePhone(u.phone);
+    return `
+      <div class="crew-row">
+        <div class="crew-info">
+          <div class="crew-name">${esc(u.name)}${me ? ' <span class="you-tag">you</span>' : ''}</div>
+          <div class="crew-meta">${esc(u.position || '')}${u.position && u.company ? ' · ' : ''}${esc(u.company || '')}</div>
+          ${tel ? `<a class="crew-phone" href="tel:${tel}">${esc(formatPhone(u.phone))}</a>` : ''}
+        </div>
+        ${S.owner && !me ? `<button class="icon-btn tiny danger-ghost" data-remove="${u.id}" title="Remove">✕</button>` : ''}
+      </div>`;
+  }).join('');
 }
 
 export function renderSettings() {
@@ -39,10 +60,20 @@ export function renderSettings() {
     <section class="card">
       <h4>You</h4>
       <div class="setting-row">
-        <div><div class="setting-label">Your name (shown on pins & notes)</div>
-        <div class="setting-value">${esc(S.profile.name)}</div></div>
+        <div>
+          <div class="setting-value">${esc(S.profile.name)}</div>
+          <div class="setting-label">${esc(S.profile.position || '')}${S.profile.position && S.profile.company ? ' · ' : ''}${esc(S.profile.company || '')}</div>
+          <div class="setting-label">${esc(formatPhone(S.profile.phone))}</div>
+        </div>
         <button class="btn small" id="s-name">Edit</button>
       </div>
+      <div class="setting-hint">Your name shows on every pin and note you add.</div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h4>Crew on this app</h4><span class="badge">${activeUsers().length}</span></div>
+      <div class="setting-hint">Everyone who's signed in${S.owner ? ' — only you can remove someone.' : '.'}</div>
+      <div id="crew-list">${renderCrew()}</div>
     </section>
 
     <section class="card">
@@ -65,7 +96,7 @@ export function renderSettings() {
 
     <section class="card">
       <h4>Share this app</h4>
-      <div class="setting-hint">Send anyone this link — they type their name and they're in:</div>
+      <div class="setting-hint">Send anyone this link — they enter their details and they're in:</div>
       <div class="share-url mono" id="s-url">${esc(location.origin + location.pathname)}</div>
       <button class="btn small" id="s-copy">Copy link</button>
       <div class="setting-hint" style="margin-top:10px">
@@ -98,11 +129,35 @@ export function renderSettings() {
 
   $('#s-name').onclick = async () => {
     const res = await modalForm({
-      title: 'Your name',
-      fields: [{ name: 'v', label: 'Name', value: S.profile.name, required: true }],
+      title: 'Your details',
+      fields: [
+        { name: 'first', label: 'First name', value: S.profile.first, required: true },
+        { name: 'last', label: 'Last name', value: S.profile.last, required: true },
+        { name: 'company', label: 'Company', value: S.profile.company, required: true },
+        { name: 'position', label: 'Position', value: S.profile.position, required: true },
+        { name: 'phone', label: 'Cell number', type: 'tel', value: formatPhone(S.profile.phone), required: true },
+      ],
     });
-    if (res && res.v.trim()) { await setProfile(res.v.trim()); toast('Name updated', 'ok'); }
+    if (!res) return;
+    if (!res.first.trim() || !res.last.trim() || !res.company.trim() || !res.position.trim()) {
+      toast('Please fill in every field', 'warn'); return;
+    }
+    const phone = normalizePhone(res.phone);
+    if (!phone) { toast('Enter a valid 10-digit cell number', 'warn'); return; }
+    await saveProfile({ first: res.first, last: res.last, company: res.company, position: res.position, phone });
+    toast('Your details updated', 'ok');
   };
+
+  // owner-only: remove someone from the roster
+  $$('[data-remove]').forEach(btn => btn.onclick = async () => {
+    const u = activeUsers().find(x => x.id === btn.dataset.remove);
+    if (!u) return;
+    if (await confirmDlg(`Remove ${u.name} from the app?`, { okText: 'Remove', danger: true,
+      title: 'Remove crew member' })) {
+      await removeUser(u.id);
+      toast(`${u.name} removed`, 'ok');
+    }
+  });
 
   const syncBtn = $('#s-sync');
   if (syncBtn) syncBtn.onclick = () => { kick(); toast('Syncing…', 'info'); };

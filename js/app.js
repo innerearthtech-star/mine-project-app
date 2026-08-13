@@ -1,9 +1,9 @@
 // ── Boot, welcome screen, tab navigation, header status ────────────
 
-import { $, $$, esc, on, toast } from './util.js';
+import { $, $$, esc, on, toast, normalizePhone } from './util.js';
 import { CONFIG } from './config.js';
 import { DB } from './db.js';
-import { S, loadAll, setProfile, projectName } from './store.js';
+import { S, loadAll, saveProfile, projectName, iAmRemoved } from './store.js';
 import { initSync, syncState } from './sync.js';
 import { initMap, refreshMapSize } from './map.js';
 import { initJob, renderJob } from './job.js';
@@ -41,23 +41,65 @@ async function boot() {
   on('sync', renderHeader);
   on('owner', updateTabs);
   on('profile', renderHeader);
+  // if the owner removes this person, drop them back to the sign-up screen
+  on('data:users', () => {
+    if (S.profile && !S.owner && iAmRemoved() && $('#app').classList.contains('show')) {
+      $('#app').classList.remove('show');
+      showWelcome({ removed: true });
+    }
+  });
 
-  if (!S.profile) showWelcome();
-  else startApp();
+  // need sign-up if: never registered, missing the newer fields, or removed
+  const incomplete = S.profile && (!S.profile.first || !S.profile.phone);
+  if (!S.profile || incomplete || (iAmRemoved() && !S.owner)) {
+    showWelcome({ removed: Boolean(S.profile && iAmRemoved()) });
+  } else {
+    startApp();
+  }
 }
 
-function showWelcome() {
-  $('#welcome').classList.add('show');
+function showWelcome({ removed = false } = {}) {
+  const wrap = $('#welcome');
+  wrap.classList.add('show');
   $('#welcome-title').textContent = `${projectName()} Project`;
+
+  // pre-fill if we already know this person (re-joining after removal / edit)
+  const p = S.profile;
+  if (p) {
+    $('#w-first').value = p.first || '';
+    $('#w-last').value = p.last || '';
+    $('#w-company').value = p.company || '';
+    $('#w-position').value = p.position || '';
+    $('#w-phone').value = p.phone || '';
+  }
+  const err = $('#w-error');
+  if (removed) {
+    err.hidden = false;
+    err.textContent = 'The site owner removed your access. Re-enter your details to rejoin.';
+  } else {
+    err.hidden = true;
+  }
+
   const form = $('#welcome-form');
   form.onsubmit = async e => {
     e.preventDefault();
-    const name = $('#welcome-name').value.trim();
-    if (!name) return;
-    await setProfile(name);
-    $('#welcome').classList.remove('show');
+    const first = $('#w-first').value.trim();
+    const last = $('#w-last').value.trim();
+    const company = $('#w-company').value.trim();
+    const position = $('#w-position').value.trim();
+    const phoneRaw = $('#w-phone').value.trim();
+    if (!first || !last || !company || !position) {
+      err.hidden = false; err.textContent = 'Please fill in every field.'; return;
+    }
+    const phone = normalizePhone(phoneRaw);
+    if (!phone) {
+      err.hidden = false; err.textContent = 'Enter a valid 10-digit cell number.';
+      $('#w-phone').focus(); return;
+    }
+    await saveProfile({ first, last, company, position, phone });
+    wrap.classList.remove('show');
     startApp();
-    toast(`Welcome, ${name} — pins you add show your name`, 'ok');
+    toast(`Welcome, ${first} — pins you add show your name`, 'ok');
   };
 }
 

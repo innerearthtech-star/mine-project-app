@@ -46,14 +46,19 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
 .welcome-card { width: 100%; max-width: 360px; text-align: center; }
 .welcome-logo { margin-bottom: 18px; filter: drop-shadow(0 8px 24px #f5a52444); }
 .welcome-card h1 { font-size: 28px; letter-spacing: -0.5px; }
-.welcome-sub { color: var(--muted); margin: 6px 0 26px; }
-#welcome-name {
-  width: 100%; padding: 15px 16px; font-size: 17px; text-align: center;
+.welcome-sub { color: var(--muted); margin: 6px 0 22px; }
+.welcome-row { display: flex; gap: 10px; }
+.welcome-card form input {
+  width: 100%; padding: 14px 16px; font-size: 16px;
   background: var(--card); color: var(--text);
   border: 1.5px solid var(--line); border-radius: var(--radius);
-  outline: none; margin-bottom: 12px;
+  outline: none; margin-bottom: 10px;
 }
-#welcome-name:focus { border-color: var(--accent); }
+.welcome-card form input:focus { border-color: var(--accent); }
+.welcome-error {
+  color: var(--red); font-size: 13px; text-align: left;
+  margin: 2px 2px 10px; font-weight: 600;
+}
 .welcome-note { color: var(--muted); font-size: 13px; margin-top: 18px; }
 .welcome-brand { color: var(--muted); font-size: 13px; margin-top: 26px; }
 .welcome-brand b { color: var(--accent); }
@@ -340,6 +345,22 @@ main { flex: 1; position: relative; min-height: 0; }
   width: 100%; aspect-ratio: 16/10; object-fit: cover;
   border-radius: 8px; border: 1px solid var(--line); cursor: pointer;
 }
+
+/* ── Crew roster ─────────────────────────────────────────────────── */
+.crew-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 11px 2px; border-bottom: 1px solid var(--line);
+}
+.crew-row:last-child { border-bottom: none; }
+.crew-info { min-width: 0; }
+.crew-name { font-size: 15px; font-weight: 700; }
+.you-tag {
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px;
+  background: var(--accent); color: #14100a; padding: 1px 6px; border-radius: 999px;
+  vertical-align: middle; margin-left: 4px;
+}
+.crew-meta { font-size: 13px; color: var(--muted); }
+.crew-phone { font-size: 14px; color: var(--accent); text-decoration: none; }
 
 /* ── Settings ────────────────────────────────────────────────────── */
 .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

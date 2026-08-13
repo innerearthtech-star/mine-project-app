@@ -29,9 +29,16 @@
         </svg>
       </div>
       <h1 id="welcome-title">Coal Mine Project</h1>
-      <p class="welcome-sub">Shared borehole map · notes · directions</p>
+      <p class="welcome-sub">Tell us who you are to get started</p>
       <form id="welcome-form">
-        <input id="welcome-name" type="text" placeholder="Your name" autocomplete="name" maxlength="40" required>
+        <div class="welcome-row">
+          <input id="w-first" type="text" placeholder="First name" autocomplete="given-name" maxlength="40" required>
+          <input id="w-last" type="text" placeholder="Last name" autocomplete="family-name" maxlength="40" required>
+        </div>
+        <input id="w-company" type="text" placeholder="Company" autocomplete="organization" maxlength="60" required>
+        <input id="w-position" type="text" placeholder="Position (e.g. Logging Engineer)" autocomplete="organization-title" maxlength="60" required>
+        <input id="w-phone" type="tel" inputmode="tel" placeholder="Cell number" autocomplete="tel" maxlength="20" required>
+        <div id="w-error" class="welcome-error" hidden></div>
         <button class="btn primary big" type="submit">Let's go</button>
       </form>
       <p class="welcome-note">Your name shows on every pin and note you add, so the crew knows who logged what.</p>

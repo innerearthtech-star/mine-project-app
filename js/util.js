@@ -71,6 +71,19 @@ export function fmtDist(m) {
   return `${mi < 10 ? mi.toFixed(1) : Math.round(mi)} mi`;
 }
 
+// ── Phone numbers ──────────────────────────────────────────────────
+// Return the 10 digits of a US cell, or null if it isn't a valid one.
+export function normalizePhone(raw) {
+  let d = String(raw ?? '').replace(/\D/g, '');
+  if (d.length === 11 && d[0] === '1') d = d.slice(1); // strip country code
+  return d.length === 10 ? d : null;
+}
+export function formatPhone(raw) {
+  const d = normalizePhone(raw);
+  if (!d) return String(raw ?? '');
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+}
+
 export const isIOS = () =>
   /iPad|iPhone|iPod/.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);

@@ -50,6 +50,20 @@ create table if not exists app_settings (
   deleted boolean default false
 );
 
+-- Shared: roster of everyone using the app (one row per person)
+create table if not exists users (
+  id uuid primary key,
+  first text not null,
+  last text not null,
+  name text not null,                  -- "first last", shown on pins/notes
+  company text default '',
+  position text default '',
+  phone text default '',               -- 10 digits, no formatting
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  deleted boolean default false        -- owner set this to remove someone
+);
+
 -- Shared: video inspections (video files live in the 'videos' storage
 -- bucket; screenshots live in the 'photos' bucket under screens/…)
 create table if not exists videos (
@@ -110,7 +124,7 @@ create table if not exists jobs (
 do $$
 declare t text;
 begin
-  foreach t in array array['boreholes','notes','contacts','app_settings','runs','shifts','jobs','videos']
+  foreach t in array array['boreholes','notes','contacts','app_settings','users','runs','shifts','jobs','videos']
   loop
     execute format('alter table %I enable row level security', t);
     execute format('drop policy if exists "open access" on %I', t);
@@ -134,7 +148,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['boreholes','notes','contacts','app_settings','runs','shifts','jobs','videos']
+  foreach t in array array['boreholes','notes','contacts','app_settings','users','runs','shifts','jobs','videos']
   loop
     execute format('drop trigger if exists lww on %I', t);
     execute format('create trigger lww before update on %I for each row execute function lww_guard()', t);
@@ -145,7 +159,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['boreholes','notes','contacts','app_settings','runs','shifts','jobs','videos']
+  foreach t in array array['boreholes','notes','contacts','app_settings','users','runs','shifts','jobs','videos']
   loop
     begin
       execute format('alter publication supabase_realtime add table %I', t);

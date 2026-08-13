@@ -7,13 +7,14 @@ import { CONFIG } from './config.js';
 import { uuid, nowISO, emit } from './util.js';
 
 export const S = {
-  profile: null,      // {id, name}
+  profile: null,      // {id, first, last, name, company, position, phone}
   owner: false,       // this device has unlocked the private Job tab
   ownerKey: null,     // stable key tagging private rows (derived from owner code)
   boreholes: [],
   notes: [],
   contacts: [],
   videos: [],
+  users: [],          // roster: everyone using the app
   runs: [],
   shifts: [],
   jobs: [],
@@ -24,7 +25,7 @@ export const S = {
 export const PRIVATE_TABLES = new Set(['runs', 'shifts', 'jobs']);
 // Local store name for each synced table (Supabase table 'app_settings' ⇔ local 'settings')
 const LOCAL_STORE = t => (t === 'app_settings' ? 'settings' : t);
-export const SYNCED_TABLES = ['boreholes', 'notes', 'contacts', 'videos', 'runs', 'shifts', 'jobs', 'app_settings'];
+export const SYNCED_TABLES = ['boreholes', 'notes', 'contacts', 'videos', 'users', 'runs', 'shifts', 'jobs', 'app_settings'];
 
 export async function loadAll() {
   S.profile = (await DB.kvGet('profile')) || null;
@@ -34,6 +35,7 @@ export async function loadAll() {
   S.notes = await DB.all('notes');
   S.contacts = await DB.all('contacts');
   S.videos = await DB.all('videos');
+  S.users = await DB.all('users');
   S.runs = await DB.all('runs');
   S.shifts = await DB.all('shifts');
   S.jobs = await DB.all('jobs');
@@ -91,6 +93,9 @@ export const notesFor = id =>
     .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 export const activeContacts = () =>
   S.contacts.filter(c => !c.deleted)
+    .sort((a, b) => (a.company + a.name).localeCompare(b.company + b.name));
+export const activeUsers = () =>
+  S.users.filter(u => !u.deleted)
     .sort((a, b) => (a.company + a.name).localeCompare(b.company + b.name));
 export const activeVideos = () =>
   S.videos.filter(v => !v.deleted).sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
@@ -163,12 +168,40 @@ export function newJob(nightStart) {
   });
 }
 
-// ── Profile / owner ────────────────────────────────────────────────
-export async function setProfile(name) {
-  S.profile = S.profile || { id: uuid() };
-  S.profile.name = name;
+// ── Profile / roster ───────────────────────────────────────────────
+// data = {first, last, company, position, phone}. Stores the profile
+// locally AND upserts this person's row into the shared roster so the
+// owner can see (and remove) who's on the app.
+export async function saveProfile(data) {
+  const id = S.profile?.id || uuid();
+  const first = data.first.trim(), last = data.last.trim();
+  S.profile = {
+    id, first, last,
+    name: `${first} ${last}`.trim(),
+    company: (data.company || '').trim(),
+    position: (data.position || '').trim(),
+    phone: data.phone || '',
+  };
   await DB.kvSet('profile', S.profile);
+  await save('users', {
+    id, first, last, name: S.profile.name,
+    company: S.profile.company, position: S.profile.position, phone: S.profile.phone,
+    created_at: findRow('users', id)?.created_at || nowISO(),
+    deleted: false,
+  });
   emit('profile');
+}
+
+// Owner removes someone from the roster.
+export async function removeUser(id) {
+  const u = findRow('users', id);
+  if (u) await softDelete('users', u);
+}
+
+// True if the owner has removed *this* device's user from the roster.
+export function iAmRemoved() {
+  const me = S.profile && findRow('users', S.profile.id);
+  return Boolean(me && me.deleted);
 }
 export async function unlockOwner(ownerKey) {
   S.owner = true;
