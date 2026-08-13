@@ -8,7 +8,7 @@ import {
   fmtDate, fmtTime, fmtDateTime, toLocalInput,
 } from './util.js';
 import { CONFIG } from './config.js';
-import { S, findRow, softDelete, activeBoreholes, activeVideos, newVideo } from './store.js';
+import { S, findRow, softDelete, activeBoreholes, activeVideos, newVideo, canISeeVideos } from './store.js';
 import { isConfigured, getClient, kick } from './sync.js';
 
 let selectedWell = null;   // {id, name} chosen in the picker
@@ -21,7 +21,12 @@ let q = '';                // list search
 export function initVideos() {
   on('data:videos', renderVideoList);
   on('data:boreholes', () => { renderWellResults(); renderVideoList(); });
-  on('owner', renderVideosTab); // uploading is owner-only; re-render on unlock
+  // permissions changed (owner unlock, or a can_videos grant syncing in) —
+  // never rebuild the form while an upload is running, the progress UI
+  // lives inside it
+  const rerender = () => { if (!uploading && !currentUpload) renderVideosTab(); };
+  on('owner', rerender);
+  on('data:users', rerender);
   // a 10GB upload takes an hour+ — warn before the tab closes mid-flight
   window.addEventListener('beforeunload', e => {
     if (uploading || currentUpload) { e.preventDefault(); e.returnValue = ''; }
@@ -39,7 +44,14 @@ export function refreshUploadDefaults() {
 
 export function renderVideosTab() {
   const root = $('#view-videos .tab-body');
-  // Uploading is owner-only. Everyone can search and watch.
+  // Viewing needs an owner grant (the tab is hidden without one, but keep
+  // this belt-and-suspenders for a revoke that lands mid-visit)
+  if (!canISeeVideos()) {
+    root.innerHTML = `<div class="empty-hint">Inspection videos are restricted —
+      ask the app owner for access.</div>`;
+    return;
+  }
+  // Uploading is owner-only. Permitted crew can search and watch.
   const canUpload = isConfigured() && S.owner;
   root.innerHTML = `
     ${canUpload ? `

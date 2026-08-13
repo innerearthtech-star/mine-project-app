@@ -42,6 +42,7 @@ export function initMap() {
   DB.kvGet('mapView').then(v => {
     if (v) map.setView(v.center, v.zoom);
     else map.setView(DEFAULT_VIEW.center, DEFAULT_VIEW.zoom);
+    renderMarkers(); // regroup now that pixel distances exist
   });
   map.on('moveend', () => {
     const c = map.getCenter();
@@ -60,6 +61,8 @@ export function initMap() {
   renderMarkers();
   // debounced: a bulk sync merge fires one event per row — render once
   on('data:boreholes', debounce(renderMarkers, 150));
+  // pads split into individual pins once zoom separates them
+  map.on('zoomend', debounce(renderMarkers, 80));
   startGPS();
   wireControls();
   setTimeout(() => map.invalidateSize(), 50);
@@ -100,46 +103,108 @@ function popupHTML(b) {
 }
 
 function markerSig(b) {
-  return `${b.name}|${b.roof_level || ''}|${b.casing_bottom || ''}|${b.mine_floor || ''}`;
+  return `${b.name}|${b.lat}|${b.lng}|${b.roof_level || ''}|${b.casing_bottom || ''}|${b.mine_floor || ''}`;
 }
 
-// (re)bind the popup's "Open well" button — needed again after a live
-// sync updates the popup content while it's open
+// (re)bind every "Open well" button in a popup (pad popups have several)
 function wirePopupBtn(popup) {
   const node = popup && popup._contentNode;
-  const btn = node && node.querySelector('[data-open]');
-  if (btn) btn.onclick = () => { map.closePopup(); openWell(btn.dataset.open); };
+  if (!node) return;
+  node.querySelectorAll('[data-open]').forEach(btn => {
+    btn.onclick = () => { map.closePopup(); openWell(btn.dataset.open); };
+  });
+}
+
+// Pad pin: wells drilled ~20ft apart share one pin until zoom separates
+// them. Tapping it lists the wells in line order (west → east).
+function padIcon(group) {
+  return L.divIcon({
+    className: 'pin-wrap',
+    iconSize: [34, 44],
+    iconAnchor: [17, 42],
+    html: `
+      <div class="pin">
+        <svg viewBox="0 0 30 40" width="34" height="44">
+          <path d="M15 1C7.8 1 2 6.9 2 14.2 2 24.5 15 38 15 38S28 24.5 28 14.2C28 6.9 22.2 1 15 1z"
+                fill="var(--pin)" stroke="#00000055" stroke-width="1.5"/>
+          <circle cx="15" cy="14" r="7.5" fill="#0b0f14"/>
+          <text x="15" y="18" text-anchor="middle" fill="var(--pin)"
+                font-size="11" font-weight="800" font-family="sans-serif">${group.length}</text>
+        </svg>
+        <span class="pin-label">${esc(group.length)} wells</span>
+      </div>`,
+  });
+}
+
+function padPopupHTML(group) {
+  // west → east so the list reads like the pad looks on the ground
+  const sorted = [...group].sort((a, b) => a.lng - b.lng);
+  return `<div class="pin-pop">
+    <div class="pin-pop-name">${sorted.length} wells on this pad</div>
+    <div class="pin-pop-order">west → east</div>
+    ${sorted.map(b => `
+      <button class="pad-row" data-open="${b.id}">
+        <span>${esc(b.name)}</span><span class="pad-open">Open ›</span>
+      </button>`).join('')}
+  </div>`;
+}
+
+// Greedy pixel-space grouping: wells whose pins would collide at the
+// current zoom (~44px) merge into one pad pin.
+const CLUSTER_PX = 44;
+function groupWells(list) {
+  // no view yet (first paint) → no pixel math possible; render singles
+  if (!map || !map._loaded) return list.map(b => [b]);
+  const pts = list.map(b => ({ b, p: map.latLngToLayerPoint([b.lat, b.lng]) }));
+  const groups = [];
+  const used = new Set();
+  for (let i = 0; i < pts.length; i++) {
+    if (used.has(i)) continue;
+    const g = [pts[i].b];
+    used.add(i);
+    for (let j = i + 1; j < pts.length; j++) {
+      if (used.has(j)) continue;
+      // must collide on screen AND actually be the same pad (~160ft) —
+      // zoomed way out, wells miles apart just overlap like before
+      if (pts[i].p.distanceTo(pts[j].p) < CLUSTER_PX &&
+          haversineM(pts[i].b, pts[j].b) < 50) { g.push(pts[j].b); used.add(j); }
+    }
+    groups.push(g);
+  }
+  return groups;
 }
 
 function renderMarkers() {
   if (!map) return;
-  const list = activeBoreholes();
+  const groups = groupWells(activeBoreholes());
   const seen = new Set();
-  for (const b of list) {
-    seen.add(b.id);
-    const existing = markers.get(b.id);
+  for (const g of groups) {
+    const single = g.length === 1;
+    const key = single ? g[0].id : 'pad:' + g.map(b => b.id).sort().join(',');
+    seen.add(key);
+    const lat = g.reduce((s, b) => s + b.lat, 0) / g.length;
+    const lng = g.reduce((s, b) => s + b.lng, 0) / g.length;
+    const sig = g.map(markerSig).join('~');
+    const existing = markers.get(key);
     if (existing) {
-      if (existing._lat !== b.lat || existing._lng !== b.lng) {
-        existing.setLatLng([b.lat, b.lng]);
-        existing._lat = b.lat; existing._lng = b.lng;
-      }
-      const sig = markerSig(b);
       if (existing._sig !== sig) {
-        existing.setIcon(pinIcon(b));
-        existing.setPopupContent(popupHTML(b));
+        existing.setLatLng([lat, lng]);
+        existing.setIcon(single ? pinIcon(g[0]) : padIcon(g));
+        existing.setPopupContent(single ? popupHTML(g[0]) : padPopupHTML(g));
         if (existing.isPopupOpen()) wirePopupBtn(existing.getPopup());
         existing._sig = sig;
       }
     } else {
-      const m = L.marker([b.lat, b.lng], { icon: pinIcon(b) })
-        .bindPopup(popupHTML(b), { className: 'pin-popup', offset: [0, -34], autoPanPadding: [24, 90] })
+      const m = L.marker([lat, lng], { icon: single ? pinIcon(g[0]) : padIcon(g) })
+        .bindPopup(single ? popupHTML(g[0]) : padPopupHTML(g),
+          { className: 'pin-popup', offset: [0, -34], autoPanPadding: [24, 90] })
         .addTo(map);
-      m._lat = b.lat; m._lng = b.lng; m._sig = markerSig(b);
-      markers.set(b.id, m);
+      m._sig = sig;
+      markers.set(key, m);
     }
   }
-  for (const [id, m] of markers) {
-    if (!seen.has(id)) { m.remove(); markers.delete(id); }
+  for (const [key, m] of markers) {
+    if (!seen.has(key)) { m.remove(); markers.delete(key); }
   }
 }
 
@@ -256,8 +321,12 @@ function wireControls() {
           // timeout (not 'moveend') so it still opens when the map is
           // already centered on that well and flyTo is a no-op.
           flyToWell(b);
-          const m = markers.get(b.id);
-          if (m) setTimeout(() => m.openPopup(), 850);
+          setTimeout(() => {
+            // the well may be merged into a pad pin at this zoom
+            const m = markers.get(b.id) ||
+              [...markers.entries()].find(([k]) => k.startsWith('pad:') && k.includes(b.id))?.[1];
+            if (m) m.openPopup();
+          }, 850);
         }
       };
     });

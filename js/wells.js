@@ -6,6 +6,7 @@ import {
 } from './util.js';
 import {
   S, findRow, save, softDelete, notesFor, newNote, newRun, addPhotoBlob, photoURL, videosFor,
+  canISeeVideos,
 } from './store.js';
 import { kick } from './sync.js';
 import { videoCard, wireVideoCards } from './videos.js';
@@ -91,6 +92,7 @@ export async function openWell(id) {
   const renderWellVideos = () => {
     const wrap = $('#w-videos-block', el);
     if (!wrap) return;
+    if (!canISeeVideos()) { wrap.innerHTML = ''; return; } // owner-granted only
     const vids = videosFor(id);
     wrap.innerHTML = vids.length ? `
       <h4 class="notes-title">Inspection videos <span class="count">${vids.length}</span></h4>

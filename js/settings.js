@@ -4,6 +4,7 @@ import { $, $$, esc, on, toast, confirmDlg, modalForm, sha256hex, fmtTime, forma
 import { CONFIG } from './config.js';
 import {
   S, projectName, setSetting, saveProfile, unlockOwner, lockOwner, activeUsers, removeUser, setUserPin,
+  canIInvite, newInvite, setUserInvitePermission, setUserVideoPermission,
 } from './store.js';
 import { syncState, kick } from './sync.js';
 
@@ -29,8 +30,14 @@ function renderCrew() {
           ${tel ? `<a class="crew-phone" href="tel:${tel}">${esc(formatPhone(u.phone))}</a>` : ''}
         </div>
         <div class="crew-actions">
-          ${S.owner && !me && u.pin ? `<button class="btn small ghost" data-resetpin="${u.id}" title="Clear their PIN so they can set a new one">Reset PIN</button>` : ''}
-          ${S.owner && !me ? `<button class="icon-btn tiny danger-ghost" data-remove="${u.id}" title="Remove">✕</button>` : ''}
+          ${S.owner && !me ? `
+            <button class="btn small ${u.can_videos ? 'primary' : 'ghost'}" data-vidtoggle="${u.id}"
+              title="Let them see inspection videos">${u.can_videos ? 'Videos ✓' : 'Videos'}</button>
+            <button class="btn small ${u.can_invite ? 'primary' : 'ghost'}" data-invtoggle="${u.id}"
+              title="Let them create one-time invite links">${u.can_invite ? 'Invites ✓' : 'Invites'}</button>
+            ${u.pin ? `<button class="btn small ghost" data-resetpin="${u.id}" title="Clear their PIN so they can set a new one">Reset PIN</button>` : ''}
+            <button class="icon-btn tiny danger-ghost" data-remove="${u.id}" title="Remove">✕</button>
+          ` : ''}
         </div>
       </div>`;
   }).join('');
@@ -98,10 +105,15 @@ export function renderSettings() {
     </section>
 
     <section class="card">
-      <h4>Share this app</h4>
-      <div class="setting-hint">Send anyone this link — they enter their details and they're in:</div>
-      <div class="share-url mono" id="s-url">${esc(location.origin + location.pathname)}</div>
-      <button class="btn small" id="s-copy">Copy link</button>
+      <h4>Invite someone</h4>
+      ${canIInvite() ? `
+        <div class="setting-hint">Each invite link works <b>once</b> — send it to one person while
+        you have signal. They tap it, sign up, and the link is dead.</div>
+        <button class="btn small primary" id="s-invite">✉️ ${navigator.share ? 'Share invite link' : 'Copy invite link'}</button>
+      ` : `
+        <div class="setting-hint">Adding someone takes a one-time invite link — ask the app owner
+        (or an authorized crew member) to send one.</div>
+      `}
       <div class="setting-hint" style="margin-top:10px">
         📱 <b>Install on your phone:</b> iPhone — Share button → “Add to Home Screen”.
         Android — browser menu → “Install app”.
@@ -202,10 +214,41 @@ export function renderSettings() {
     }
   };
 
-  $('#s-copy').onclick = async () => {
+  const inviteBtn = $('#s-invite');
+  if (inviteBtn) inviteBtn.onclick = async () => {
+    inviteBtn.disabled = true;
     try {
-      await navigator.clipboard.writeText(location.origin + location.pathname);
-      toast('Link copied', 'ok');
-    } catch { toast('Could not copy — long-press the link instead', 'warn'); }
+      const inv = await newInvite();
+      kick(); // push it now so the link works the moment it's sent
+      const url = `${location.origin}${location.pathname}?join=${inv.code}`;
+      const text = `Join ${projectName()} Project: ${url}\nOne-time invite — code ${inv.code}`;
+      if (navigator.share) {
+        try { await navigator.share({ title: `${projectName()} Project`, text }); }
+        catch { /* user closed the share sheet */ }
+      } else {
+        await navigator.clipboard.writeText(text);
+        toast('Invite copied — send it to one person', 'ok');
+      }
+    } catch {
+      toast('Could not create the invite — try again', 'warn');
+    } finally {
+      inviteBtn.disabled = false;
+    }
   };
+
+  // owner-only: grant / revoke invite permission
+  $$('[data-invtoggle]').forEach(btn => btn.onclick = async () => {
+    const u = activeUsers().find(x => x.id === btn.dataset.invtoggle);
+    if (!u) return;
+    await setUserInvitePermission(u.id, !u.can_invite);
+    toast(u.can_invite ? `${u.name} can no longer invite` : `${u.name} can now send invite links`, 'ok');
+  });
+
+  // owner-only: grant / revoke video visibility
+  $$('[data-vidtoggle]').forEach(btn => btn.onclick = async () => {
+    const u = activeUsers().find(x => x.id === btn.dataset.vidtoggle);
+    if (!u) return;
+    await setUserVideoPermission(u.id, !u.can_videos);
+    toast(u.can_videos ? `${u.name} can no longer see videos` : `${u.name} can now see inspection videos`, 'ok');
+  });
 }

@@ -5,9 +5,9 @@ import { CONFIG } from './config.js';
 import { DB } from './db.js';
 import {
   S, loadAll, saveProfile, projectName, iAmRemoved, activeUsers, resumeAs,
-  checkUserPin, setUserPin,
+  checkUserPin, setUserPin, findUnusedInvite, consumeInvite, canISeeVideos,
 } from './store.js';
-import { initSync, syncState } from './sync.js';
+import { initSync, syncState, getClient } from './sync.js';
 import { initMap, refreshMapSize } from './map.js';
 import { initJob, renderJob } from './job.js';
 import { initContacts, renderContacts } from './contacts.js';
@@ -48,8 +48,11 @@ async function boot() {
     if (S.profile && !S.owner && iAmRemoved() && $('#app').classList.contains('show')) {
       $('#app').classList.remove('show');
       showWelcome({ removed: true });
+      return;
     }
     if ($('#welcome').classList.contains('show') && welcomeRenderResume) welcomeRenderResume();
+    // granted/revoked permissions (videos tab) arrive via the roster
+    if ($('#app').classList.contains('show')) updateTabs();
   });
 
   // need sign-up if: never registered, missing the newer fields, or removed
@@ -62,6 +65,23 @@ async function boot() {
 }
 
 let welcomeRenderResume = null; // lets the data:users handler refresh the list
+let pendingInvite = null;       // unused invite row to consume on sign-up
+
+// An invite code is valid if it exists and nobody has used it. Fresh
+// installs have nothing synced yet, so fall back to asking the server.
+async function validateInviteCode(code) {
+  const c = (code || '').trim().toUpperCase();
+  if (!c) return null;
+  const local = findUnusedInvite(c);
+  if (local) return local;
+  const client = getClient();
+  if (!client) return null;
+  try {
+    const { data } = await client.from('invites').select('*')
+      .eq('code', c).eq('deleted', false).is('used_by', null).limit(1);
+    return (data && data[0]) || null;
+  } catch { return null; }
+}
 
 function showWelcome({ removed = false } = {}) {
   // tear down any open well sheet / dialog before returning to sign-up
@@ -152,15 +172,38 @@ function showWelcome({ removed = false } = {}) {
   } else {
     gateForm.style.display = '';
     main.hidden = true;
-    gateForm.onsubmit = e => {
+    gateForm.onsubmit = async e => {
       e.preventDefault();
-      if ($('#w-code').value.trim() === CONFIG.JOIN_CODE) {
+      const entered = $('#w-code').value.trim();
+      if (entered === CONFIG.JOIN_CODE) {
+        if (!removed) setMsg('');
+        openMain();
+        return;
+      }
+      const invite = await validateInviteCode(entered);
+      if (invite) {
+        pendingInvite = invite;
         if (!removed) setMsg('');
         openMain();
       } else {
-        setMsg('Wrong access code — ask whoever shared the app.');
+        setMsg('Wrong or already-used code — ask whoever shared the app for a new invite.');
       }
     };
+
+    // arrived through a one-time invite link (…?join=CODE)
+    const joinCode = new URLSearchParams(location.search).get('join');
+    if (joinCode) {
+      history.replaceState(null, '', location.pathname); // don't retry on reload
+      validateInviteCode(joinCode).then(invite => {
+        if (main.hidden === false) return; // already through the gate
+        if (invite) {
+          pendingInvite = invite;
+          openMain();
+        } else {
+          setMsg('That invite link was already used — ask for a new one, or enter an access code.');
+        }
+      });
+    }
   }
 
   const form = $('#welcome-form');
@@ -176,6 +219,7 @@ function showWelcome({ removed = false } = {}) {
     const pin = $('#w-pin').value.trim();
     if (!/^\d{4}$/.test(pin)) { setErr('Your PIN must be exactly 4 digits.'); $('#w-pin').focus(); return; }
     await saveProfile({ first, last, company, position, phone, pin });
+    if (pendingInvite) { await consumeInvite(pendingInvite); pendingInvite = null; }
     wrap.classList.remove('show');
     startApp();
     toast(`Welcome, ${first} — pins you add show your name`, 'ok');
@@ -203,7 +247,9 @@ function renderHeader() {
 
 function updateTabs() {
   $('#tab-job').style.display = S.owner ? '' : 'none';
+  $('#tab-videos').style.display = canISeeVideos() ? '' : 'none';
   if (!S.owner && currentTab === 'job') showTab('map');
+  if (!canISeeVideos() && currentTab === 'videos') showTab('map');
   if (S.owner) renderJob();
 }
 

@@ -2,7 +2,7 @@
 // (offline-first: writes land here immediately, sync.js pushes later)
 
 const DB_NAME = 'coalmine-app';
-const DB_VER = 3; // v2: videos store · v3: users roster
+const DB_VER = 4; // v2: videos store · v3: users roster · v4: invites
 let dbp = null;
 
 function open() {
@@ -20,6 +20,7 @@ function open() {
       mk('contacts', 'id');
       mk('videos', 'id');       // metadata only — the files live in Supabase
       mk('users', 'id');        // roster of everyone using the app
+      mk('invites', 'id');      // one-time invite links
       mk('runs', 'id');
       mk('shifts', 'id');
       mk('jobs', 'id');

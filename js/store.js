@@ -15,6 +15,7 @@ export const S = {
   contacts: [],
   videos: [],
   users: [],          // roster: everyone using the app
+  invites: [],        // one-time invite links
   runs: [],
   shifts: [],
   jobs: [],
@@ -25,7 +26,7 @@ export const S = {
 export const PRIVATE_TABLES = new Set(['runs', 'shifts', 'jobs']);
 // Local store name for each synced table (Supabase table 'app_settings' ⇔ local 'settings')
 const LOCAL_STORE = t => (t === 'app_settings' ? 'settings' : t);
-export const SYNCED_TABLES = ['boreholes', 'notes', 'contacts', 'videos', 'users', 'runs', 'shifts', 'jobs', 'app_settings'];
+export const SYNCED_TABLES = ['boreholes', 'notes', 'contacts', 'videos', 'users', 'invites', 'runs', 'shifts', 'jobs', 'app_settings'];
 
 export async function loadAll() {
   S.profile = (await DB.kvGet('profile')) || null;
@@ -36,6 +37,7 @@ export async function loadAll() {
   S.contacts = await DB.all('contacts');
   S.videos = await DB.all('videos');
   S.users = await DB.all('users');
+  S.invites = await DB.all('invites');
   S.runs = await DB.all('runs');
   S.shifts = await DB.all('shifts');
   S.jobs = await DB.all('jobs');
@@ -206,6 +208,53 @@ export async function saveProfile(data) {
     deleted: false,
   });
   emit('profile');
+}
+
+// ── Invites (one-time links; owner grants who may create them) ─────
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+export function canIInvite() {
+  if (S.owner) return true;
+  const me = S.profile && findRow('users', S.profile.id);
+  return Boolean(me && me.can_invite && !me.deleted);
+}
+export async function newInvite() {
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  const code = [...bytes].map(b => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
+  const row = {
+    id: uuid(), code,
+    created_by: S.profile.name, author_id: S.profile.id,
+    used_by: null, used_by_id: null,
+    created_at: nowISO(), deleted: false,
+  };
+  await save('invites', row);
+  return row;
+}
+export function findUnusedInvite(code) {
+  const c = (code || '').trim().toUpperCase();
+  return S.invites.find(i => !i.deleted && !i.used_by && i.code === c) || null;
+}
+export async function consumeInvite(invite) {
+  // accepts the row itself (may have come straight from the server and
+  // not exist locally yet) or an id
+  const row = typeof invite === 'object'
+    ? (findRow('invites', invite.id) || invite)
+    : findRow('invites', invite);
+  if (row) await save('invites', { ...row, used_by: S.profile.name, used_by_id: S.profile.id });
+}
+export async function setUserInvitePermission(id, allowed) {
+  const u = findRow('users', id);
+  if (u) await save('users', { ...u, can_invite: Boolean(allowed), deleted: false });
+}
+
+// Video visibility: owner always; everyone else needs the grant
+export function canISeeVideos() {
+  if (S.owner) return true;
+  const me = S.profile && findRow('users', S.profile.id);
+  return Boolean(me && me.can_videos && !me.deleted);
+}
+export async function setUserVideoPermission(id, allowed) {
+  const u = findRow('users', id);
+  if (u) await save('users', { ...u, can_videos: Boolean(allowed), deleted: false });
 }
 
 // PIN helpers for the tap-your-name sign-in

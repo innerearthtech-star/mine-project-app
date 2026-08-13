@@ -27,11 +27,16 @@ export function renderJob() {
   const totalMs = shifts.reduce((sum, s) =>
     sum + (s.end_ts ? (new Date(s.end_ts) - new Date(s.start_ts)) : 0), 0);
   const nights = nightsInfo(job);
+  // under an hour, show minutes — "2m" beats a tile stuck on "0.0"
+  const totalMin = Math.round(totalMs / 60000);
+  const hoursStat = totalMin < 60
+    ? { num: totalMin, label: 'field minutes' }
+    : { num: (totalMs / 3600000).toFixed(1), label: 'field hours' };
 
   root.innerHTML = `
     <div class="stat-row">
       <div class="stat"><div class="stat-num">${runs.length}</div><div class="stat-label">runs</div></div>
-      <div class="stat"><div class="stat-num">${(totalMs / 3600000).toFixed(1)}</div><div class="stat-label">field hours</div></div>
+      <div class="stat"><div class="stat-num">${hoursStat.num}</div><div class="stat-label">${hoursStat.label}</div></div>
       <div class="stat"><div class="stat-num">${nights.count}</div><div class="stat-label">night stays</div></div>
     </div>
 

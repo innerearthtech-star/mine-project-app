@@ -1,4 +1,4 @@
--- ── Coal Mine App · Supabase schema ────────────────────────────────
+﻿-- ── Coal Mine App · Supabase schema ────────────────────────────────
 -- Paste this whole file into the Supabase SQL Editor and click Run.
 -- Safe to run more than once.
 
@@ -69,11 +69,28 @@ create table if not exists users (
   position text default '',
   phone text default '',               -- 10 digits, no formatting
   pin text,                            -- sha256(id:pin) — guards tap-to-sign-in
+  can_invite boolean default false,    -- owner grants this; lets them make invite links
+  can_videos boolean default false,    -- owner grants this; lets them see inspections
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   deleted boolean default false        -- owner set this to remove someone
 );
 alter table users add column if not exists pin text;
+alter table users add column if not exists can_invite boolean default false;
+alter table users add column if not exists can_videos boolean default false;
+
+-- Shared: one-time invite links (each code admits exactly one sign-up)
+create table if not exists invites (
+  id uuid primary key,
+  code text not null,
+  created_by text,
+  author_id text,
+  used_by text,                        -- null until someone signs up with it
+  used_by_id text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  deleted boolean default false
+);
 
 -- Shared: video inspections (video files live in the 'videos' storage
 -- bucket; screenshots live in the 'photos' bucket under screens/…)
@@ -135,7 +152,7 @@ create table if not exists jobs (
 do $$
 declare t text;
 begin
-  foreach t in array array['boreholes','notes','contacts','app_settings','users','runs','shifts','jobs','videos']
+  foreach t in array array['boreholes','notes','contacts','app_settings','users','runs','shifts','jobs','videos','invites']
   loop
     execute format('alter table %I enable row level security', t);
     execute format('drop policy if exists "open access" on %I', t);
@@ -159,7 +176,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['boreholes','notes','contacts','app_settings','users','runs','shifts','jobs','videos']
+  foreach t in array array['boreholes','notes','contacts','app_settings','users','runs','shifts','jobs','videos','invites']
   loop
     execute format('drop trigger if exists lww on %I', t);
     execute format('create trigger lww before update on %I for each row execute function lww_guard()', t);
@@ -170,7 +187,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['boreholes','notes','contacts','app_settings','users','runs','shifts','jobs','videos']
+  foreach t in array array['boreholes','notes','contacts','app_settings','users','runs','shifts','jobs','videos','invites']
   loop
     begin
       execute format('alter publication supabase_realtime add table %I', t);
