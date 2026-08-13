@@ -4,8 +4,8 @@
 // local-only mode on each device.
 
 export const CONFIG = {
-  SUPABASE_URL: '',        // e.g. 'https://abcdefgh.supabase.co'
-  SUPABASE_ANON_KEY: '',   // the long "anon public" key
+  SUPABASE_URL: 'https://omhxfumnbidadlzjnwjn.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9taHhmdW1uYmlkYWRsempud2puIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MzQ4NTAsImV4cCI6MjEwMjIxMDg1MH0.S-HLcgPgOYqnwyTDWNwrK4BWxpY6E-zGFIPPx8DwtWU',
 
   // Code that unlocks the private "My Job" tab (billing / runs / hours).
   // Change this to anything you like before sharing the app.
