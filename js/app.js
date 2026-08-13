@@ -69,10 +69,11 @@ function showWelcome({ removed = false } = {}) {
   $('#welcome-title').textContent = `${projectName()} Project`;
 
   const gated = Boolean(CONFIG.JOIN_CODE);
-  const codeInput = $('#w-code');
-  const codeWrap = $('#w-code-wrap');
-  if (codeWrap) codeWrap.style.display = gated ? '' : 'none';
-  const codeOk = () => !gated || (codeInput && codeInput.value.trim() === CONFIG.JOIN_CODE);
+  const gateForm = $('#gate-form');
+  const main = $('#welcome-main');
+  const msg = $('#welcome-msg');
+  const setMsg = m => { if (m) { msg.hidden = false; msg.textContent = m; } else { msg.hidden = true; } };
+  setMsg(removed ? 'The site owner removed your access. Sign back in to rejoin.' : '');
 
   // pre-fill if we already know this person (re-joining after removal / edit)
   const p = S.profile;
@@ -85,19 +86,16 @@ function showWelcome({ removed = false } = {}) {
   }
 
   const err = $('#w-error');
-  const setErr = msg => {
-    if (msg) { err.hidden = false; err.textContent = msg; } else { err.hidden = true; }
-  };
-  setErr(removed ? 'The site owner removed your access. Re-enter your details to rejoin.' : '');
+  const setErr = m => { if (m) { err.hidden = false; err.textContent = m; } else { err.hidden = true; } };
+  setErr('');
 
-  // "Tap your name" list — only rendered once the access code is right, so
-  // a random with the link never sees the roster. Lets returning users
-  // (e.g. after installing the app, which gets fresh storage) sign back in
-  // without retyping everything.
+  // "Tap your name" — front and center once past the access code, so
+  // returning users (fresh install = fresh storage on iPhone) never
+  // retype their details.
   const renderResume = () => {
     const box = $('#welcome-resume');
-    if (!box) return;
-    const users = codeOk() ? activeUsers() : [];
+    if (!box || main.hidden) return;
+    const users = activeUsers();
     if (!users.length) { box.innerHTML = ''; return; }
     box.innerHTML = `
       <div class="resume-title">Already signed up? Tap your name</div>
@@ -106,7 +104,7 @@ function showWelcome({ removed = false } = {}) {
           <span class="resume-name">${esc(u.name)}</span>
           <span class="resume-co">${esc(u.company || '')}</span></button>`).join('')}
       </div>
-      <div class="resume-or">— or add yourself below —</div>`;
+      <div class="resume-or">— or —</div>`;
     $$('.resume-row', box).forEach(btn => btn.onclick = async () => {
       await resumeAs(btn.dataset.uid);
       wrap.classList.remove('show');
@@ -115,18 +113,32 @@ function showWelcome({ removed = false } = {}) {
     });
   };
   welcomeRenderResume = renderResume;
-  renderResume();
 
-  if (codeInput) codeInput.oninput = () => { renderResume(); if (codeOk()) setErr(''); };
+  const openMain = () => {
+    gateForm.style.display = 'none';
+    main.hidden = false;
+    renderResume();
+  };
+
+  if (!gated) {
+    openMain();
+  } else {
+    gateForm.style.display = '';
+    main.hidden = true;
+    gateForm.onsubmit = e => {
+      e.preventDefault();
+      if ($('#w-code').value.trim() === CONFIG.JOIN_CODE) {
+        if (!removed) setMsg('');
+        openMain();
+      } else {
+        setMsg('Wrong access code — ask whoever shared the app.');
+      }
+    };
+  }
 
   const form = $('#welcome-form');
   form.onsubmit = async e => {
     e.preventDefault();
-    if (gated && codeInput.value.trim() !== CONFIG.JOIN_CODE) {
-      setErr('Wrong access code — ask whoever shared the app.');
-      codeInput.focus();
-      return;
-    }
     const first = $('#w-first').value.trim();
     const last = $('#w-last').value.trim();
     const company = $('#w-company').value.trim();

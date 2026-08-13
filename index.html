@@ -18,11 +18,11 @@
 </head>
 <body>
 
-  <!-- Welcome / name entry -->
+  <!-- Welcome: access code first, then tap-your-name / create account -->
   <div id="welcome">
     <div class="welcome-card">
       <div class="welcome-logo">
-        <svg viewBox="0 0 64 64" width="72" height="72">
+        <svg viewBox="0 0 64 64" width="60" height="60">
           <path d="M32 4C19 4 9 14.3 9 27.1 9 45.3 32 62 32 62s23-16.7 23-34.9C55 14.3 45 4 32 4z" fill="#f5a524"/>
           <circle cx="32" cy="27" r="11" fill="#0b0f14"/>
           <path d="M26 33l12-12M26 21l12 12" stroke="#f5a524" stroke-width="3" stroke-linecap="round"/>
@@ -30,34 +30,43 @@
       </div>
       <h1 id="welcome-title">Mine Project</h1>
       <p class="welcome-sub">Sign in to get started</p>
+      <div id="welcome-msg" class="welcome-error" hidden></div>
 
-      <div id="welcome-resume"></div>
-
-      <form id="welcome-form">
-        <div class="wl-form-head" id="wl-form-head">New here? Create your account</div>
-        <label class="wl" id="w-code-wrap">Access code
+      <!-- step 1: shared access code -->
+      <form id="gate-form">
+        <label class="wl">Access code
           <input id="w-code" type="text" placeholder="Ask whoever shared the app" autocomplete="off" autocapitalize="none" maxlength="40">
         </label>
-        <div class="welcome-row">
-          <label class="wl">First name
-            <input id="w-first" type="text" placeholder="e.g. John" autocomplete="given-name" maxlength="40" required>
-          </label>
-          <label class="wl">Last name
-            <input id="w-last" type="text" placeholder="e.g. Smith" autocomplete="family-name" maxlength="40" required>
-          </label>
-        </div>
-        <label class="wl">Company
-          <input id="w-company" type="text" placeholder="Company you work for" autocomplete="organization" maxlength="60" required>
-        </label>
-        <label class="wl">Position
-          <input id="w-position" type="text" placeholder="e.g. Logging Engineer" autocomplete="organization-title" maxlength="60" required>
-        </label>
-        <label class="wl">Cell number
-          <input id="w-phone" type="tel" inputmode="tel" placeholder="e.g. (304) 555-0142" autocomplete="tel" maxlength="20" required>
-        </label>
-        <div id="w-error" class="welcome-error" hidden></div>
-        <button class="btn primary big" type="submit">Let's go</button>
+        <button class="btn primary big" type="submit">Continue</button>
       </form>
+
+      <!-- step 2: tap your name, or create an account -->
+      <div id="welcome-main" hidden>
+        <div id="welcome-resume"></div>
+        <div class="wl-form-head">New here? Create your account</div>
+        <form id="welcome-form">
+          <div class="welcome-row">
+            <label class="wl">First name
+              <input id="w-first" type="text" placeholder="e.g. John" autocomplete="given-name" maxlength="40" required>
+            </label>
+            <label class="wl">Last name
+              <input id="w-last" type="text" placeholder="e.g. Smith" autocomplete="family-name" maxlength="40" required>
+            </label>
+          </div>
+          <label class="wl">Company
+            <input id="w-company" type="text" placeholder="Company you work for" autocomplete="organization" maxlength="60" required>
+          </label>
+          <label class="wl">Position
+            <input id="w-position" type="text" placeholder="e.g. Logging Engineer" autocomplete="organization-title" maxlength="60" required>
+          </label>
+          <label class="wl">Cell number
+            <input id="w-phone" type="tel" inputmode="tel" placeholder="e.g. (304) 555-0142" autocomplete="tel" maxlength="20" required>
+          </label>
+          <div id="w-error" class="welcome-error" hidden></div>
+          <button class="btn primary big" type="submit">Let's go</button>
+        </form>
+      </div>
+
       <p class="welcome-note">Your name shows on every pin and note you add, so the crew knows who logged what.</p>
       <p class="welcome-brand">Built by <b>Inner Earth Tech</b></p>
     </div>
@@ -91,7 +100,9 @@
           <div id="search-results"></div>
         </div>
 
-        <div id="placing-banner"><span>Tap the map</span><button class="btn small ghost" id="placing-cancel">Cancel</button></div>
+        <div id="placing-banner"><span>Tap the map</span>
+          <button class="btn small" id="placing-confirm" style="display:none">✓ Place here</button>
+          <button class="btn small ghost" id="placing-cancel">Cancel</button></div>
 
         <div class="map-fabs">
           <button class="fab" id="btn-locate" title="My location">
