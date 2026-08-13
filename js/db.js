@@ -61,6 +61,16 @@ export const DB = {
   put: (store, obj) => tx(store, 'readwrite', s => s.put(obj)),
   del: (store, key) => tx(store, 'readwrite', s => s.delete(key)),
 
+  // Atomic multi-store write: all pairs commit in one transaction, so a
+  // mid-write crash can never save a row without its outbox entry.
+  putAll: pairs => open().then(db => new Promise((res, rej) => {
+    const t = db.transaction([...new Set(pairs.map(p => p[0]))], 'readwrite');
+    for (const [store, obj] of pairs) t.objectStore(store).put(obj);
+    t.oncomplete = () => res();
+    t.onerror = () => rej(t.error);
+    t.onabort = () => rej(t.error);
+  })),
+
   kvGet: key => DB.get('kv', key).then(r => (r ? r.value : undefined)),
   kvSet: (key, value) => DB.put('kv', { key, value }),
 };

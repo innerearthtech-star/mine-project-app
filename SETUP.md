@@ -34,7 +34,8 @@ SUPABASE_ANON_KEY: 'eyJhbGciOi…',
    plain static files. Deploy.
 4. You get a URL like `https://coal-mine-app.vercel.app` — **that's the app.**
 
-Any future change: push to GitHub, Vercel redeploys automatically.
+Any future change: push to GitHub, Vercel redeploys automatically. Phones
+pick the update up in the background — it's live the next time the app opens.
 
 ## Step 3 · Phones
 

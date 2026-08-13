@@ -9,12 +9,17 @@ import {
 } from './store.js';
 import { kick } from './sync.js';
 
+let openSeq = 0; // last-tapped well wins if two sheets race to open
+
 export async function openWell(id) {
+  const seq = ++openSeq;
   const b = findRow('boreholes', id);
   if (!b || b.deleted) return;
   const notes = notesFor(id);
   const surfaceURL = await photoURL(b.photo);
+  if (seq !== openSeq) return; // a newer openWell superseded this one
 
+  const pending = []; // composer photo attachments: {path, blob, url}
   const el = sheet(`
     <div class="well-head">
       <div>
@@ -35,7 +40,8 @@ export async function openWell(id) {
 
     <div class="well-photo-block">
       ${surfaceURL
-        ? `<img class="well-photo" id="w-photo" src="${esc(surfaceURL)}" alt="surface photo">
+        ? `<img class="well-photo" id="w-photo" src="${esc(surfaceURL)}" alt="surface photo"
+               crossorigin="anonymous" onerror="this.style.display='none'">
            <button class="btn small ghost" id="w-photo-change">${ic('camera')} Change photo</button>`
         : `<button class="btn big" id="w-photo-add">${ic('camera')} Add surface photo</button>`}
       <input type="file" id="w-photo-input" accept="image/*" capture="environment" hidden>
@@ -57,7 +63,7 @@ export async function openWell(id) {
       <input type="file" id="n-photo-input" accept="image/*" capture="environment" multiple hidden>
     </div>
     <div class="notes-list" id="notes-list"><div class="loading">…</div></div>
-  `);
+  `, { onClose: () => pending.forEach(p => URL.revokeObjectURL(p.url)) });
 
   renderNotes(el, b);
 
@@ -121,43 +127,59 @@ export async function openWell(id) {
     const res = await modalForm({
       title: `Log run — ${b.name}`,
       fields: [
-        { name: 'ts', label: 'Date & time', type: 'datetime-local', value: toLocalInput() },
+        { name: 'ts', label: 'Date & time', type: 'datetime-local', value: toLocalInput(), required: true },
         { name: 'note', label: 'Note (optional)', placeholder: 'e.g. gamma run' },
       ],
       okText: 'Log run',
     });
     if (!res) return;
+    if (!res.ts || isNaN(new Date(res.ts))) { toast('Enter a valid date & time', 'warn'); return; }
     await newRun(id, new Date(res.ts).toISOString(), res.note || '');
     toast(`Run logged at ${b.name}`, 'ok');
   };
 
-  // note composer
-  const pending = []; // {path, blob, url}
+  // note composer — previewsEl/postBtn are captured per render, so a photo
+  // that finishes compressing after the sheet re-rendered lands in a
+  // detached node instead of leaking into the new composer
+  const previewsEl = $('#n-previews', el);
+  const postBtn = $('#n-post', el);
   const nInput = $('#n-photo-input', el);
-  $('#n-camera', el).onclick = () => nInput.click();
-  nInput.onchange = async () => {
-    for (const f of nInput.files) {
-      try {
-        const blob = await compressImage(f);
-        const path = `${id}/${uuid()}.jpg`;
-        pending.push({ path, blob, url: URL.createObjectURL(blob) });
-      } catch { toast('Skipped a photo that could not be read', 'warn'); }
-    }
-    nInput.value = '';
-    $('#n-previews', el).innerHTML = pending.map((p, i) =>
+  let busy = 0; // photos still compressing — Post stays disabled
+  const renderPreviews = () => {
+    previewsEl.innerHTML = pending.map((p, i) =>
       `<img class="preview" src="${p.url}" data-i="${i}" title="Tap to remove">`).join('');
-    $$('.preview', el).forEach(im => im.onclick = () => {
-      pending.splice(Number(im.dataset.i), 1);
-      im.remove();
+    $$('.preview', previewsEl).forEach(im => im.onclick = () => {
+      const [gone] = pending.splice(Number(im.dataset.i), 1);
+      if (gone) URL.revokeObjectURL(gone.url);
+      renderPreviews();
     });
   };
-  $('#n-post', el).onclick = async () => {
+  $('#n-camera', el).onclick = () => nInput.click();
+  nInput.onchange = async () => {
+    const files = [...nInput.files];
+    nInput.value = '';
+    busy++;
+    postBtn.disabled = true;
+    for (const f of files) {
+      try {
+        const blob = await compressImage(f);
+        pending.push({ path: `${id}/${uuid()}.jpg`, blob, url: URL.createObjectURL(blob) });
+        renderPreviews();
+      } catch { toast('Skipped a photo that could not be read', 'warn'); }
+    }
+    if (--busy === 0) postBtn.disabled = false;
+  };
+  postBtn.onclick = async () => {
+    if (busy || postBtn.disabled) return;
     const text = $('#n-text', el).value.trim();
     if (!text && !pending.length) return;
-    for (const p of pending) await addPhotoBlob(p.path, p.blob);
-    await newNote(id, text, pending.map(p => p.path));
-    kick();
-    openWell(id); // re-render with the new note
+    postBtn.disabled = true; // no double-tap double-post
+    try {
+      for (const p of pending) await addPhotoBlob(p.path, p.blob);
+      await newNote(id, text, pending.map(p => p.path));
+      kick();
+      openWell(id); // re-render with the new note
+    } finally { postBtn.disabled = false; }
   };
 }
 
@@ -181,7 +203,8 @@ async function renderNotes(el, b) {
         ${n.text ? `<div class="note-text">${esc(n.text)}</div>` : ''}
         ${photos.filter(Boolean).length
           ? `<div class="note-photos">${photos.filter(Boolean).map(u =>
-              `<img class="note-photo" src="${esc(u)}" loading="lazy">`).join('')}</div>`
+              `<img class="note-photo" src="${esc(u)}" loading="lazy"
+                    crossorigin="anonymous" onerror="this.style.display='none'">`).join('')}</div>`
           : ''}
       </div>`;
   }));
@@ -190,7 +213,11 @@ async function renderNotes(el, b) {
   $$('[data-del]', wrap).forEach(btn => btn.onclick = async () => {
     if (await confirmDlg('Delete this note?', { okText: 'Delete', danger: true })) {
       await softDelete('notes', findRow('notes', btn.dataset.del));
-      openWell(b.id);
+      // re-render only the notes list so a half-typed note in the
+      // composer (text + attached photos) survives the deletion
+      renderNotes(el, b);
+      const count = $('.notes-title .count', el);
+      if (count) count.textContent = notesFor(b.id).length;
     }
   });
 }

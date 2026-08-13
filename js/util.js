@@ -184,7 +184,7 @@ export function confirmDlg(msg, { okText = 'OK', danger = false, title = 'Are yo
 
 // Fullscreen photo viewer
 export function viewPhoto(src) {
-  const el = openModal(`<img class="photo-full" src="${esc(src)}" alt="photo">`);
+  const el = openModal(`<img class="photo-full" src="${esc(src)}" alt="photo" crossorigin="anonymous">`);
   el.classList.add('photo-modal');
   const close = () => { el.classList.remove('photo-modal'); closeModal(); };
   el.onclick = close;

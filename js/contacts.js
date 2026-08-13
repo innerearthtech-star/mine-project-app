@@ -72,12 +72,14 @@ async function editContact(id) {
   if (S.owner) fields.push({ name: 'del', label: 'Type DELETE to remove this contact', placeholder: '' });
   const res = await modalForm({ title: 'Edit contact', fields });
   if (!res) return;
-  if (S.owner && res.del === 'DELETE') {
+  const delTyped = (res.del || '').trim();
+  if (S.owner && delTyped.toLowerCase() === 'delete') {
     if (await confirmDlg(`Delete ${c.name}?`, { okText: 'Delete', danger: true })) {
       await softDelete('contacts', c);
       toast('Contact deleted', 'ok');
     }
     return;
   }
+  if (delTyped) { toast('Nothing changed — type DELETE to remove', 'warn'); return; }
   await save('contacts', { ...c, company: res.company.trim(), name: res.name.trim(), phone: res.phone.trim() });
 }

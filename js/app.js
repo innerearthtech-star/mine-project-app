@@ -17,6 +17,11 @@ async function boot() {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
   await DB.init();
+  // ask the browser to protect our storage from eviction — this phone's
+  // unsynced pins/notes/hours live in IndexedDB until signal returns
+  if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persist().catch(() => {});
+  }
   await loadAll();
   await initSync();
 

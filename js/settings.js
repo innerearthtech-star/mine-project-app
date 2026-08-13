@@ -48,6 +48,7 @@ export function renderSettings() {
     <section class="card">
       <h4>Connection</h4>
       <div class="conn-status">${conn}</div>
+      ${st.dropped ? `<div class="conn-error">⚠ ${st.dropped} change${st.dropped === 1 ? '' : 's'} could not sync and stayed only on this phone.</div>` : ''}
       ${st.error ? `<div class="conn-error">Last sync problem: ${esc(st.error)}</div>` : ''}
       ${st.configured ? `<button class="btn small" id="s-sync">Sync now</button>`
         : `<div class="setting-hint">Supabase isn't configured yet — pins and notes stay on this phone. See SETUP.md.</div>`}

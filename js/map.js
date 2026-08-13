@@ -24,12 +24,14 @@ export function initMap() {
   });
   map.attributionControl.setPrefix(false);
 
+  // crossOrigin lets the service worker verify tile responses before
+  // caching them for offline use (no opaque-response quota padding)
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 21, maxNativeZoom: 19,
+    maxZoom: 21, maxNativeZoom: 19, crossOrigin: true,
     attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
   }).addTo(map);
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 21, maxNativeZoom: 19,
+    maxZoom: 21, maxNativeZoom: 19, crossOrigin: true,
     attribution: 'Labels © Esri',
   }).addTo(map);
 
@@ -51,7 +53,8 @@ export function initMap() {
   });
 
   renderMarkers();
-  on('data:boreholes', () => renderMarkers());
+  // debounced: a bulk sync merge fires one event per row — render once
+  on('data:boreholes', debounce(renderMarkers, 150));
   startGPS();
   wireControls();
   setTimeout(() => map.invalidateSize(), 50);
@@ -85,12 +88,20 @@ function renderMarkers() {
     seen.add(b.id);
     const existing = markers.get(b.id);
     if (existing) {
-      existing.setLatLng([b.lat, b.lng]);
-      existing.setIcon(pinIcon(b));
+      // only touch the DOM when something actually changed
+      if (existing._lat !== b.lat || existing._lng !== b.lng) {
+        existing.setLatLng([b.lat, b.lng]);
+        existing._lat = b.lat; existing._lng = b.lng;
+      }
+      if (existing._name !== b.name) {
+        existing.setIcon(pinIcon(b));
+        existing._name = b.name;
+      }
     } else {
       const m = L.marker([b.lat, b.lng], { icon: pinIcon(b) })
         .addTo(map)
         .on('click', () => openWell(b.id));
+      m._lat = b.lat; m._lng = b.lng; m._name = b.name;
       markers.set(b.id, m);
     }
   }
@@ -112,7 +123,15 @@ function startGPS() {
       myPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
       drawMyPos();
     },
-    () => { /* denied or unavailable — locate button will surface it */ },
+    err => {
+      // A denied watch never resumes; clear it so the locate button can
+      // re-arm after the user re-allows location. TIMEOUT/UNAVAILABLE are
+      // per-attempt on a watch — leave those running.
+      if (err.code === err.PERMISSION_DENIED) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+    },
     { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
   );
 }

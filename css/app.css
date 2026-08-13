@@ -65,6 +65,7 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
 #header {
   display: flex; align-items: center; justify-content: space-between;
   padding: calc(10px + var(--safe-top)) 16px 10px;
+  background: #0b0f14e0; /* fallback for browsers without color-mix */
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
@@ -89,6 +90,7 @@ main { flex: 1; position: relative; min-height: 0; }
 /* ── Tab bar ─────────────────────────────────────────────────────── */
 #tabbar {
   display: flex;
+  background: #131a22ee; /* fallback for browsers without color-mix */
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   backdrop-filter: blur(12px);
   border-top: 1px solid var(--line);
@@ -131,7 +133,9 @@ main { flex: 1; position: relative; min-height: 0; }
 .icon-btn.tiny .ic { width: 16px; height: 16px; }
 
 /* ── Map ─────────────────────────────────────────────────────────── */
-#map { position: absolute; inset: 0; background: #060a0e; }
+/* z-index:0 walls off Leaflet's internal panes (z 200-1000) so they can
+   never paint over the bottom sheet, modals, or toasts */
+#map { position: absolute; inset: 0; background: #060a0e; z-index: 0; }
 .leaflet-container { font-family: inherit; }
 .leaflet-control-attribution {
   background: #0b0f14aa !important; color: #93a3b3 !important;
@@ -177,6 +181,7 @@ main { flex: 1; position: relative; min-height: 0; }
 }
 .search-bar {
   display: flex; align-items: center; gap: 8px;
+  background: #131a22f2; /* fallback for browsers without color-mix */
   background: color-mix(in srgb, var(--surface) 94%, transparent);
   backdrop-filter: blur(10px);
   border: 1px solid var(--line); border-radius: var(--radius);
@@ -420,7 +425,9 @@ main { flex: 1; position: relative; min-height: 0; }
 /* Larger screens: keep it phone-shaped and centered */
 @media (min-width: 700px) {
   #app { max-width: 520px; margin: 0 auto; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
-  #sheet, #tabbar { max-width: 520px; margin: 0 auto; left: 50%; transform-origin: bottom; }
-  #sheet { left: 50%; transform: translate(-50%, 105%); }
+  #sheet {
+    left: 50%; right: auto; width: 100%; max-width: 520px;
+    transform: translate(-50%, 105%);
+  }
   #sheet.open { transform: translate(-50%, 0); }
 }

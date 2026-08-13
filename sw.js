@@ -5,7 +5,7 @@
 // - Uploaded photos cached after first view
 // - Supabase API calls always go to the network (sync.js queues offline)
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL_CACHE = `shell-${VERSION}`;
 const TILE_CACHE = 'tiles-v1';
 const PHOTO_CACHE = 'photos-v1';
@@ -50,12 +50,14 @@ self.addEventListener('activate', e => {
   );
 });
 
+// Cache only verified 200s — an opaque or error response cached once
+// (a 404 photo, a captive-portal page) would otherwise be served forever.
 async function cacheFirst(cacheName, req, maxEntries) {
   const cache = await caches.open(cacheName);
   const hit = await cache.match(req);
   if (hit) return hit;
   const res = await fetch(req);
-  if (res.ok || res.type === 'opaque') {
+  if (res.ok) {
     cache.put(req, res.clone());
     if (maxEntries) trim(cache, maxEntries);
   }
@@ -90,26 +92,31 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // App navigation — network first so updates land, cached shell as fallback
+  // App navigation — network first so updates land, cached shell as
+  // fallback. Only a real 200 gets cached (a captive-portal login page or
+  // a 5xx must never replace the offline copy of the app).
   if (e.request.mode === 'navigate') {
     e.respondWith(
       fetch(e.request)
         .then(res => {
-          caches.open(SHELL_CACHE).then(c => c.put('./index.html', res.clone()));
-          return res.clone();
+          if (res.ok) caches.open(SHELL_CACHE).then(c => c.put('./index.html', res.clone()));
+          return res;
         })
         .catch(() => caches.match('./index.html'))
     );
     return;
   }
 
-  // Same-origin static files — cache first
+  // Same-origin static files — serve cached instantly, refresh in the
+  // background so a Vercel deploy reaches phones by their next launch.
   if (url.origin === location.origin) {
-    e.respondWith(
-      caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
+    e.respondWith((async () => {
+      const cached = await caches.match(e.request);
+      const refresh = fetch(e.request).then(res => {
         if (res.ok) caches.open(SHELL_CACHE).then(c => c.put(e.request, res.clone()));
-        return res.clone();
-      }))
-    );
+        return res;
+      }).catch(() => null);
+      return cached || (await refresh) || new Response('', { status: 504 });
+    })());
   }
 });

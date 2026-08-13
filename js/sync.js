@@ -17,6 +17,7 @@ export const syncState = {
   pending: 0,
   lastSync: null,
   error: null,
+  dropped: 0, // writes given up on after repeated data errors (never auto-reset)
 };
 
 export function isConfigured() {
@@ -56,19 +57,27 @@ async function refreshPending() {
 }
 
 // Run one full sync cycle; coalesce extra requests instead of overlapping.
+// Pull ALWAYS runs even when push/upload fails — a stuck upload must never
+// stop this phone from receiving the crew's pins and notes.
 export async function kick() {
   if (!client || !navigator.onLine) return;
   if (syncing) { queued = true; return; }
   syncing = true;
   syncState.error = null;
   try {
-    await pushOutbox();
-    await uploadPhotos();
+    try {
+      await pushOutbox();
+      await uploadPhotos();
+    } catch (e) {
+      console.warn('push/upload failed', e);
+      syncState.error = e.message || String(e);
+    }
     await pullAll();
+    await prunePhotoBlobs();
     syncState.lastSync = Date.now();
   } catch (e) {
     console.warn('sync failed', e);
-    syncState.error = e.message || String(e);
+    syncState.error = syncState.error || e.message || String(e);
   } finally {
     await refreshPending();
     syncing = false;
@@ -78,21 +87,24 @@ export async function kick() {
 }
 
 async function pushOutbox() {
-  const ops = (await DB.all('outbox')).sort((a, b) => a.ts - b.ts);
+  const ops = (await DB.all('outbox')).sort((a, b) => (a.ts - b.ts) || ((a.seq || 0) - (b.seq || 0)));
   for (const op of ops) {
     const { error } = await client.from(op.table).upsert(op.row);
     if (!error) {
       await DB.del('outbox', op.id);
       continue;
     }
-    // Network-ish problem → stop, retry next cycle. Data problem → count
-    // attempts so one bad row can't block the queue forever.
-    const msg = (error.message || '').toLowerCase();
-    const isNetwork = msg.includes('fetch') || msg.includes('network') || msg.includes('timeout');
-    if (isNetwork) throw new Error('offline during push');
+    // Only definitive data errors (Postgres constraint/data/syntax classes,
+    // PostgREST request errors) count toward the drop limit. Anything else —
+    // 5xx, rate limits, HTML error pages, paused project, offline — is
+    // transient: stop and retry next cycle so field data is never discarded.
+    const code = String(error.code || '');
+    const isDataError = /^(22|23|42)\d{3}$/.test(code) || /^PGRST1\d\d$/.test(code);
+    if (!isDataError) throw new Error(`push failed (will retry): ${error.message}`);
     op.attempts = (op.attempts || 0) + 1;
     if (op.attempts >= 5) {
       console.error('dropping unsyncable row after 5 attempts', op, error);
+      syncState.dropped++;
       await DB.del('outbox', op.id);
     } else {
       await DB.put('outbox', op);
@@ -106,26 +118,50 @@ async function uploadPhotos() {
   for (const p of photos) {
     const { error } = await client.storage.from('photos')
       .upload(p.path, p.blob, { contentType: 'image/jpeg', upsert: true });
-    // "already exists" counts as success (upsert covers it, but be safe)
-    if (error && !String(error.message).toLowerCase().includes('exist')) {
-      throw new Error(`photo upload failed: ${error.message}`);
+    if (!error || String(error.message).toLowerCase().includes('exist')) {
+      p.uploaded = true;
+      await DB.put('photos', p);
+      continue;
     }
-    p.uploaded = true;
-    await DB.put('photos', p);
+    const msg = (error.message || '').toLowerCase();
+    if (msg.includes('fetch') || msg.includes('network') || msg.includes('timeout')) {
+      throw new Error('offline during photo upload');
+    }
+    // Data problem with this one photo — don't let it block the others.
+    p.attempts = (p.attempts || 0) + 1;
+    if (p.attempts >= 5) {
+      console.error('dropping photo after 5 failed uploads', p.path, error);
+      syncState.dropped++;
+      await DB.del('photos', p.path);
+    } else {
+      await DB.put('photos', p);
+      syncState.error = `photo upload failed: ${error.message}`;
+    }
+  }
+}
+
+// Uploaded photo blobs older than a week come out of local storage — the
+// public bucket URL (cached by the service worker once viewed) covers them.
+async function prunePhotoBlobs() {
+  const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
+  for (const p of await DB.all('photos')) {
+    if (p.uploaded && (p.ts || 0) < cutoff) await DB.del('photos', p.path);
   }
 }
 
 async function pullAll() {
+  const PAGE = 1000; // PostgREST caps responses; page so nothing is missed
   for (const table of SYNCED_TABLES) {
-    if (PRIVATE_TABLES.has(table)) {
-      if (!S.owner || !S.ownerKey) continue;
-      const { data, error } = await client.from(table).select('*').eq('owner_key', S.ownerKey);
+    const isPrivate = PRIVATE_TABLES.has(table);
+    if (isPrivate && (!S.owner || !S.ownerKey)) continue;
+    const pk = table === 'app_settings' ? 'key' : 'id';
+    for (let from = 0; ; from += PAGE) {
+      let q = client.from(table).select('*').order(pk).range(from, from + PAGE - 1);
+      if (isPrivate) q = q.eq('owner_key', S.ownerKey);
+      const { data, error } = await q;
       if (error) throw new Error(`pull ${table}: ${error.message}`);
       for (const row of data) await mergeRemote(table, row);
-    } else {
-      const { data, error } = await client.from(table).select('*');
-      if (error) throw new Error(`pull ${table}: ${error.message}`);
-      for (const row of data) await mergeRemote(table, row);
+      if (data.length < PAGE) break;
     }
   }
 }

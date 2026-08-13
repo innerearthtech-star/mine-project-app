@@ -98,6 +98,29 @@ begin
   end loop;
 end $$;
 
+-- ── Last-write-wins guard ──────────────────────────────────────────
+-- A phone that was offline can push an old snapshot after someone
+-- else already saved a newer edit; this trigger makes the database
+-- keep whichever row is newest instead of whichever arrived last.
+create or replace function lww_guard() returns trigger language plpgsql as $$
+begin
+  if new.updated_at is not null and old.updated_at is not null
+     and new.updated_at <= old.updated_at then
+    return null;  -- incoming row is older: keep what we have
+  end if;
+  return new;
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['boreholes','notes','contacts','app_settings','runs','shifts','jobs']
+  loop
+    execute format('drop trigger if exists lww on %I', t);
+    execute format('create trigger lww before update on %I for each row execute function lww_guard()', t);
+  end loop;
+end $$;
+
 -- ── Realtime: everyone sees new pins/notes instantly ───────────────
 do $$
 declare t text;

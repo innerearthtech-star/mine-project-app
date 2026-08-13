@@ -62,7 +62,7 @@ export function renderJob() {
     <section class="card">
       <h4>Night stays</h4>
       ${job ? `
-        <div class="night-live">Night <b>${nights.count}</b> tonight · started ${fmtDate(job.night_start + 'T12:00')}</div>
+        <div class="night-live">Night <b>${nights.active}</b> tonight · started ${fmtDate(job.night_start + 'T12:00')}</div>
         <div class="night-sub">Counting automatically — every night adds one until you finish.</div>
         <button class="btn big" id="btn-finish-job">Finish job — stop counting</button>
       ` : `
@@ -83,14 +83,16 @@ export function renderJob() {
 }
 
 function nightsInfo(job) {
-  if (job) {
-    // active: count tonight as a night (night 1 on the start date)
-    return { count: daysBetween(job.night_start + 'T12:00', new Date()) + 1 };
-  }
+  // total = every finished job's nights + the active job (night 1 is the
+  // start date, tonight counts while the job is running)
   const done = activeJobs().filter(j => j.night_end);
-  const count = done.reduce((s, j) => s + daysBetween(j.night_start + 'T12:00', j.night_end + 'T12:00'), 0);
-  return { count };
+  const finished = done.reduce((s, j) => s + daysBetween(j.night_start + 'T12:00', j.night_end + 'T12:00'), 0);
+  const active = job ? daysBetween(job.night_start + 'T12:00', new Date()) + 1 : 0;
+  return { count: finished + active, active };
 }
+
+const wantsDelete = v => (v || '').trim().toLowerCase() === 'delete';
+const validDate = v => v && !isNaN(new Date(v));
 
 function renderRunGroups(runs) {
   if (!runs.length) return `<div class="empty-hint">No runs yet — log them here or from a borehole's pin on the map.</div>`;
@@ -123,10 +125,12 @@ function pastJobs() {
 }
 
 function wireJob(root, { open, job }) {
-  $('#btn-shift', root).onclick = async () => {
-    if (open) {
-      await save('shifts', { ...findRow('shifts', open.id), end_ts: new Date().toISOString() });
-      toast(`Clocked out — ${fmtDur(Date.now() - new Date(open.start_ts))} in the field`, 'ok');
+  $('#btn-shift', root).onclick = async e => {
+    e.target.disabled = true; // double-tap can't create two open shifts
+    const live = openShift(); // re-check live, not the render-time snapshot
+    if (live) {
+      await save('shifts', { ...findRow('shifts', live.id), end_ts: new Date().toISOString() });
+      toast(`Clocked out — ${fmtDur(Date.now() - new Date(live.start_ts))} in the field`, 'ok');
     } else {
       await newShift(new Date().toISOString());
       toast('Clocked in — have a good one ⛏', 'ok');
@@ -145,7 +149,11 @@ function wireJob(root, { open, job }) {
       ],
     });
     if (!res) return;
-    if (res.del === 'DELETE') { await softDelete('shifts', s); toast('Day removed', 'ok'); return; }
+    if (wantsDelete(res.del)) { await softDelete('shifts', s); toast('Day removed', 'ok'); return; }
+    if (res.del && res.del.trim()) { toast('Nothing changed — type DELETE to remove', 'warn'); return; }
+    if (!validDate(res.start) || (res.end && !validDate(res.end))) {
+      toast('Enter valid times', 'warn'); return;
+    }
     await save('shifts', {
       ...s,
       start_ts: new Date(res.start).toISOString(),
@@ -158,6 +166,7 @@ function wireJob(root, { open, job }) {
     if (!wells.length) { toast('Add a borehole on the map first', 'warn'); return; }
     const res = await modalFormWithSelect(wells);
     if (!res) return;
+    if (!validDate(res.ts)) { toast('Enter a valid date & time', 'warn'); return; }
     await newRun(res.well, new Date(res.ts).toISOString(), res.note || '');
     toast('Run logged', 'ok');
   };
@@ -174,7 +183,9 @@ function wireJob(root, { open, job }) {
       ],
     });
     if (!res) return;
-    if (res.del === 'DELETE') { await softDelete('runs', r); toast('Run removed', 'ok'); return; }
+    if (wantsDelete(res.del)) { await softDelete('runs', r); toast('Run removed', 'ok'); return; }
+    if (res.del && res.del.trim()) { toast('Nothing changed — type DELETE to remove', 'warn'); return; }
+    if (!validDate(res.ts)) { toast('Enter a valid date & time', 'warn'); return; }
     await save('runs', { ...r, ts: new Date(res.ts).toISOString(), note: res.note || '' });
   });
 
@@ -182,10 +193,11 @@ function wireJob(root, { open, job }) {
   if (startBtn) startBtn.onclick = async () => {
     const res = await modalForm({
       title: 'Start night stays',
-      fields: [{ name: 'date', label: 'First night', type: 'date', value: ymd(new Date()) }],
+      fields: [{ name: 'date', label: 'First night', type: 'date', value: ymd(new Date()), required: true }],
       okText: 'Start counting',
     });
     if (!res) return;
+    if (!validDate(res.date + 'T12:00')) { toast('Pick a valid date', 'warn'); return; }
     await newJob(res.date);
     toast('Night stays are counting automatically', 'ok');
   };
@@ -194,11 +206,13 @@ function wireJob(root, { open, job }) {
   if (finishBtn) finishBtn.onclick = async () => {
     const res = await modalForm({
       title: 'Finish job',
-      fields: [{ name: 'date', label: 'Check-out morning', type: 'date', value: ymd(new Date()) }],
+      fields: [{ name: 'date', label: 'Check-out morning', type: 'date', value: ymd(new Date()), required: true }],
       okText: 'Finish',
     });
     if (!res) return;
+    if (!validDate(res.date + 'T12:00')) { toast('Pick a valid date', 'warn'); return; }
     const j = currentJob();
+    if (!j) { toast('This job is already finished', 'warn'); return; }
     await save('jobs', { ...j, night_end: res.date });
     toast(`Job finished — ${daysBetween(j.night_start + 'T12:00', res.date + 'T12:00')} nights total`, 'ok');
   };
@@ -250,28 +264,30 @@ function startClock(open) {
 }
 
 function exportCSV() {
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`; // CSV-safe cell
+  const row = (...cells) => cells.map(q).join(',');
   const lines = [];
   const wellName = id => { const b = findRow('boreholes', id); return b ? b.name : 'Unknown'; };
   lines.push('RUNS');
-  lines.push('Borehole,Date,Time,Note');
+  lines.push(row('Borehole', 'Date', 'Time', 'Note'));
   for (const r of activeRuns().slice().reverse()) {
-    lines.push(`"${wellName(r.borehole_id)}","${fmtDate(r.ts)}","${fmtTime(r.ts)}","${(r.note || '').replace(/"/g, '""')}"`);
+    lines.push(row(wellName(r.borehole_id), fmtDate(r.ts), fmtTime(r.ts), r.note || ''));
   }
   lines.push('');
   lines.push('FIELD HOURS');
-  lines.push('Date,Left hotel,Back at hotel,Hours');
+  lines.push(row('Date', 'Left hotel', 'Back at hotel', 'Hours'));
   for (const s of activeShifts().slice().reverse()) {
     const dur = s.end_ts ? ((new Date(s.end_ts) - new Date(s.start_ts)) / 3600000).toFixed(2) : '';
-    lines.push(`"${fmtDate(s.start_ts)}","${fmtTime(s.start_ts)}","${s.end_ts ? fmtTime(s.end_ts) : ''}","${dur}"`);
+    lines.push(row(fmtDate(s.start_ts), fmtTime(s.start_ts), s.end_ts ? fmtTime(s.end_ts) : '', dur));
   }
   lines.push('');
   lines.push('NIGHT STAYS');
-  lines.push('First night,Checked out,Nights');
+  lines.push(row('First night', 'Checked out', 'Nights'));
   for (const j of activeJobs()) {
     const n = j.night_end
       ? daysBetween(j.night_start + 'T12:00', j.night_end + 'T12:00')
       : daysBetween(j.night_start + 'T12:00', new Date()) + 1;
-    lines.push(`"${fmtDate(j.night_start + 'T12:00')}","${j.night_end ? fmtDate(j.night_end + 'T12:00') : 'ongoing'}","${n}"`);
+    lines.push(row(fmtDate(j.night_start + 'T12:00'), j.night_end ? fmtDate(j.night_end + 'T12:00') : 'ongoing', n));
   }
   download(`job-summary-${ymd(new Date())}.csv`, lines.join('\r\n'));
   toast('CSV downloaded', 'ok');

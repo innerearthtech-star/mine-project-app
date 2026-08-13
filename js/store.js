@@ -52,11 +52,14 @@ export function findRow(table, key) {
 }
 
 // ── Writes (local user actions) ────────────────────────────────────
+let outboxSeq = 0; // tie-breaker so same-millisecond writes push in order
 export async function save(table, row) {
   row.updated_at = nowISO();
   putMem(table, row);
-  await DB.put(LOCAL_STORE(table), row);
-  await DB.put('outbox', { id: uuid(), ts: Date.now(), attempts: 0, table, row: { ...row } });
+  await DB.putAll([
+    [LOCAL_STORE(table), row],
+    ['outbox', { id: uuid(), ts: Date.now(), seq: ++outboxSeq, attempts: 0, table, row: { ...row } }],
+  ]);
   emit('data:' + table, row);
   emit('outbox');
 }
