@@ -1,0 +1,189 @@
+// ── In-memory state + all data mutations ───────────────────────────
+// Every write: update memory → save to IndexedDB → queue in outbox →
+// sync.js pushes to Supabase when we have signal.
+
+import { DB } from './db.js';
+import { CONFIG } from './config.js';
+import { uuid, nowISO, emit } from './util.js';
+
+export const S = {
+  profile: null,      // {id, name}
+  owner: false,       // this device has unlocked the private Job tab
+  ownerKey: null,     // stable key tagging private rows (derived from owner code)
+  boreholes: [],
+  notes: [],
+  contacts: [],
+  runs: [],
+  shifts: [],
+  jobs: [],
+  settings: [],       // rows: {key, value, updated_at}
+};
+
+// Tables whose rows are private to the owner (runs / hours / night stays)
+export const PRIVATE_TABLES = new Set(['runs', 'shifts', 'jobs']);
+// Local store name for each synced table (Supabase table 'app_settings' ⇔ local 'settings')
+const LOCAL_STORE = t => (t === 'app_settings' ? 'settings' : t);
+export const SYNCED_TABLES = ['boreholes', 'notes', 'contacts', 'runs', 'shifts', 'jobs', 'app_settings'];
+
+export async function loadAll() {
+  S.profile = (await DB.kvGet('profile')) || null;
+  S.owner = (await DB.kvGet('owner')) === true;
+  S.ownerKey = (await DB.kvGet('ownerKey')) || null;
+  S.boreholes = await DB.all('boreholes');
+  S.notes = await DB.all('notes');
+  S.contacts = await DB.all('contacts');
+  S.runs = await DB.all('runs');
+  S.shifts = await DB.all('shifts');
+  S.jobs = await DB.all('jobs');
+  S.settings = await DB.all('settings');
+}
+
+function memList(table) { return S[LOCAL_STORE(table)]; }
+const keyOf = (table, row) => (table === 'app_settings' ? row.key : row.id);
+
+function putMem(table, row) {
+  const list = memList(table);
+  const k = keyOf(table, row);
+  const i = list.findIndex(r => keyOf(table, r) === k);
+  if (i >= 0) list[i] = row; else list.push(row);
+}
+export function findRow(table, key) {
+  return memList(table).find(r => keyOf(table, r) === key);
+}
+
+// ── Writes (local user actions) ────────────────────────────────────
+export async function save(table, row) {
+  row.updated_at = nowISO();
+  putMem(table, row);
+  await DB.put(LOCAL_STORE(table), row);
+  await DB.put('outbox', { id: uuid(), ts: Date.now(), attempts: 0, table, row: { ...row } });
+  emit('data:' + table, row);
+  emit('outbox');
+}
+
+export async function softDelete(table, row) {
+  await save(table, { ...row, deleted: true });
+}
+
+// ── Merges (rows arriving from Supabase pull / realtime) ───────────
+export async function mergeRemote(table, row) {
+  if (!row) return;
+  if (PRIVATE_TABLES.has(table)) {
+    if (!S.owner || row.owner_key !== S.ownerKey) return; // not my private data
+  }
+  const local = findRow(table, keyOf(table, row));
+  if (local && String(local.updated_at || '') >= String(row.updated_at || '')) return;
+  putMem(table, row);
+  await DB.put(LOCAL_STORE(table), row);
+  emit('data:' + table, row);
+}
+
+// ── Convenience accessors ──────────────────────────────────────────
+export const activeBoreholes = () =>
+  S.boreholes.filter(b => !b.deleted).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+export const notesFor = id =>
+  S.notes.filter(n => n.borehole_id === id && !n.deleted)
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+export const activeContacts = () =>
+  S.contacts.filter(c => !c.deleted)
+    .sort((a, b) => (a.company + a.name).localeCompare(b.company + b.name));
+export const activeRuns = () =>
+  S.runs.filter(r => !r.deleted).sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+export const activeShifts = () =>
+  S.shifts.filter(s => !s.deleted).sort((a, b) => String(b.start_ts).localeCompare(String(a.start_ts)));
+export const activeJobs = () =>
+  S.jobs.filter(j => !j.deleted).sort((a, b) => String(b.night_start).localeCompare(String(a.night_start)));
+export const openShift = () => activeShifts().find(s => !s.end_ts);
+export const currentJob = () => activeJobs().find(j => !j.night_end);
+
+export function getSetting(key) {
+  const r = S.settings.find(s => s.key === key && !s.deleted);
+  return r ? r.value : undefined;
+}
+export const setSetting = (key, value) => save('app_settings', { key, value });
+export const projectName = () => getSetting('project_name') || CONFIG.DEFAULT_PROJECT_NAME;
+
+// ── Entity creators ────────────────────────────────────────────────
+export async function newBorehole(name, lat, lng) {
+  const row = {
+    id: uuid(), name, lat, lng, photo: null,
+    created_by: S.profile.name, author_id: S.profile.id,
+    created_at: nowISO(), deleted: false,
+  };
+  await save('boreholes', row);
+  return row;
+}
+export function newNote(boreholeId, text, photos = []) {
+  return save('notes', {
+    id: uuid(), borehole_id: boreholeId, text, photos,
+    author: S.profile.name, author_id: S.profile.id,
+    created_at: nowISO(), deleted: false,
+  });
+}
+export function newContact(company, name, phone) {
+  return save('contacts', {
+    id: uuid(), company, name, phone,
+    created_by: S.profile.name, author_id: S.profile.id,
+    created_at: nowISO(), deleted: false,
+  });
+}
+export function newRun(boreholeId, ts, note = '') {
+  return save('runs', {
+    id: uuid(), borehole_id: boreholeId, ts, note,
+    owner_key: S.ownerKey, created_at: nowISO(), deleted: false,
+  });
+}
+export function newShift(startTs) {
+  return save('shifts', {
+    id: uuid(), start_ts: startTs, end_ts: null,
+    owner_key: S.ownerKey, created_at: nowISO(), deleted: false,
+  });
+}
+export function newJob(nightStart) {
+  return save('jobs', {
+    id: uuid(), night_start: nightStart, night_end: null,
+    owner_key: S.ownerKey, created_at: nowISO(), deleted: false,
+  });
+}
+
+// ── Profile / owner ────────────────────────────────────────────────
+export async function setProfile(name) {
+  S.profile = S.profile || { id: uuid() };
+  S.profile.name = name;
+  await DB.kvSet('profile', S.profile);
+  emit('profile');
+}
+export async function unlockOwner(ownerKey) {
+  S.owner = true;
+  S.ownerKey = ownerKey;
+  await DB.kvSet('owner', true);
+  await DB.kvSet('ownerKey', ownerKey);
+  emit('owner');
+}
+export async function lockOwner() {
+  S.owner = false;
+  await DB.kvSet('owner', false);
+  emit('owner');
+}
+
+// ── Photos (blobs stored locally, uploaded by sync) ────────────────
+export async function addPhotoBlob(path, blob) {
+  await DB.put('photos', { path, blob, uploaded: false, ts: Date.now() });
+  emit('outbox');
+}
+
+const objURLs = new Map();
+export async function photoURL(path) {
+  if (!path) return null;
+  if (objURLs.has(path)) return objURLs.get(path);
+  const rec = await DB.get('photos', path);
+  if (rec && rec.blob) {
+    const u = URL.createObjectURL(rec.blob);
+    objURLs.set(path, u);
+    return u;
+  }
+  if (CONFIG.SUPABASE_URL) {
+    return `${CONFIG.SUPABASE_URL}/storage/v1/object/public/photos/${path}`;
+  }
+  return null;
+}

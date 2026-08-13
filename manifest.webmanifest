@@ -1,0 +1,16 @@
+{
+  "name": "Coal Mine Project — Inner Earth Tech",
+  "short_name": "Mine Project",
+  "description": "Shared borehole map, notes, directions, and field tracking. Built by Inner Earth Tech.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0f14",
+  "theme_color": "#0b0f14",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-mask.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

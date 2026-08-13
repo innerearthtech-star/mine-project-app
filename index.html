@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Coal Mine Project — Inner Earth Tech</title>
+  <meta name="description" content="Shared borehole map, notes, and field tracking. Built by Inner Earth Tech.">
+  <meta name="theme-color" content="#0b0f14">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Mine Project">
+  <link rel="stylesheet" href="libs/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+  <!-- Welcome / name entry -->
+  <div id="welcome">
+    <div class="welcome-card">
+      <div class="welcome-logo">
+        <svg viewBox="0 0 64 64" width="72" height="72">
+          <path d="M32 4C19 4 9 14.3 9 27.1 9 45.3 32 62 32 62s23-16.7 23-34.9C55 14.3 45 4 32 4z" fill="#f5a524"/>
+          <circle cx="32" cy="27" r="11" fill="#0b0f14"/>
+          <path d="M26 33l12-12M26 21l12 12" stroke="#f5a524" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h1 id="welcome-title">Coal Mine Project</h1>
+      <p class="welcome-sub">Shared borehole map · notes · directions</p>
+      <form id="welcome-form">
+        <input id="welcome-name" type="text" placeholder="Your name" autocomplete="name" maxlength="40" required>
+        <button class="btn primary big" type="submit">Let's go</button>
+      </form>
+      <p class="welcome-note">Your name shows on every pin and note you add, so the crew knows who logged what.</p>
+      <p class="welcome-brand">Built by <b>Inner Earth Tech</b></p>
+    </div>
+  </div>
+
+  <!-- Main app -->
+  <div id="app">
+    <header id="header">
+      <div class="header-left">
+        <svg viewBox="0 0 64 64" width="26" height="26">
+          <path d="M32 4C19 4 9 14.3 9 27.1 9 45.3 32 62 32 62s23-16.7 23-34.9C55 14.3 45 4 32 4z" fill="#f5a524"/>
+          <circle cx="32" cy="27" r="11" fill="#0b0f14"/>
+          <path d="M26 33l12-12M26 21l12 12" stroke="#f5a524" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+        <span id="header-title">Coal Mine Project</span>
+      </div>
+      <span id="sync-dot" class="dot dot-gray" title="Sync status"></span>
+    </header>
+
+    <main>
+      <!-- MAP -->
+      <div class="view active" id="view-map">
+        <div id="map"></div>
+
+        <div id="search-panel">
+          <div class="search-bar">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="search-input" type="search" placeholder="Search boreholes…" autocomplete="off">
+            <button id="search-close" class="icon-btn" title="Close">✕</button>
+          </div>
+          <div id="search-results"></div>
+        </div>
+
+        <div id="placing-banner"><span>Tap the map</span><button class="btn small ghost" id="placing-cancel">Cancel</button></div>
+
+        <div class="map-fabs">
+          <button class="fab" id="btn-locate" title="My location">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+          </button>
+          <button class="fab fab-primary" id="btn-add-pin" title="Add borehole">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- JOB -->
+      <div class="view" id="view-job">
+        <div class="tab-body"></div>
+      </div>
+
+      <!-- CONTACTS -->
+      <div class="view" id="view-contacts">
+        <div class="tab-body">
+          <div class="contacts-top">
+            <input id="contact-search" type="search" placeholder="Search contacts…" autocomplete="off">
+            <button class="btn primary" id="btn-add-contact">+ Add</button>
+          </div>
+          <div id="contacts-list"></div>
+        </div>
+      </div>
+
+      <!-- SETTINGS -->
+      <div class="view" id="view-settings">
+        <div class="tab-body"></div>
+      </div>
+    </main>
+
+    <nav id="tabbar">
+      <button class="tab-btn active" data-tab="map">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <span>Map</span>
+      </button>
+      <button class="tab-btn" data-tab="job" id="tab-job" style="display:none">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        <span>My Job</span>
+      </button>
+      <button class="tab-btn" data-tab="contacts">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3A19.5 19.5 0 0 1 5.1 13 19.8 19.8 0 0 1 2 4.2 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7A2 2 0 0 1 22 16.9z"/></svg>
+        <span>Contacts</span>
+      </button>
+      <button class="tab-btn" data-tab="settings">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Overlays -->
+  <div id="sheet-backdrop"></div>
+  <div id="sheet"></div>
+  <div id="modal-backdrop"></div>
+  <div id="modal"></div>
+  <div id="toasts"></div>
+
+  <script src="libs/leaflet/leaflet.js"></script>
+  <script src="libs/supabase.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
