@@ -68,10 +68,12 @@ create table if not exists users (
   company text default '',
   position text default '',
   phone text default '',               -- 10 digits, no formatting
+  pin text,                            -- sha256(id:pin) — guards tap-to-sign-in
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   deleted boolean default false        -- owner set this to remove someone
 );
+alter table users add column if not exists pin text;
 
 -- Shared: video inspections (video files live in the 'videos' storage
 -- bucket; screenshots live in the 'photos' bucket under screens/…)

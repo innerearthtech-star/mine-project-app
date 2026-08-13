@@ -1,9 +1,12 @@
 // ── Boot, welcome screen, tab navigation, header status ────────────
 
-import { $, $$, esc, on, toast, normalizePhone, closeSheet, closeModal } from './util.js';
+import { $, $$, esc, on, toast, normalizePhone, closeSheet, closeModal, modalForm } from './util.js';
 import { CONFIG } from './config.js';
 import { DB } from './db.js';
-import { S, loadAll, saveProfile, projectName, iAmRemoved, activeUsers, resumeAs } from './store.js';
+import {
+  S, loadAll, saveProfile, projectName, iAmRemoved, activeUsers, resumeAs,
+  checkUserPin, setUserPin,
+} from './store.js';
 import { initSync, syncState } from './sync.js';
 import { initMap, refreshMapSize } from './map.js';
 import { initJob, renderJob } from './job.js';
@@ -106,7 +109,31 @@ function showWelcome({ removed = false } = {}) {
       </div>
       <div class="resume-or">— or —</div>`;
     $$('.resume-row', box).forEach(btn => btn.onclick = async () => {
-      await resumeAs(btn.dataset.uid);
+      const u = activeUsers().find(x => x.id === btn.dataset.uid);
+      if (!u) return;
+      if (u.pin) {
+        // account is PIN-protected — verify it's really them
+        const res = await modalForm({
+          title: `Hi ${u.first} — enter your PIN`,
+          fields: [{ name: 'pin', label: '4-digit PIN', type: 'password', inputmode: 'numeric', required: true }],
+          okText: 'Sign in',
+        });
+        if (!res) return;
+        if (!await checkUserPin(u, (res.pin || '').trim())) { toast('Wrong PIN', 'warn'); return; }
+        await resumeAs(u.id);
+      } else {
+        // account made before PINs existed — set one now, first-come
+        const res = await modalForm({
+          title: `Hi ${u.first} — set your PIN`,
+          fields: [{ name: 'pin', label: 'Create a 4-digit PIN', type: 'password', inputmode: 'numeric', required: true }],
+          okText: 'Set PIN & sign in',
+        });
+        if (!res) return;
+        const pin = (res.pin || '').trim();
+        if (!/^\d{4}$/.test(pin)) { toast('PIN must be exactly 4 digits', 'warn'); return; }
+        await resumeAs(u.id);
+        await setUserPin(u.id, pin);
+      }
       wrap.classList.remove('show');
       startApp();
       toast(`Welcome back, ${S.profile.first}`, 'ok');
@@ -146,7 +173,9 @@ function showWelcome({ removed = false } = {}) {
     if (!first || !last || !company || !position) { setErr('Please fill in every field.'); return; }
     const phone = normalizePhone($('#w-phone').value.trim());
     if (!phone) { setErr('Enter a valid 10-digit cell number.'); $('#w-phone').focus(); return; }
-    await saveProfile({ first, last, company, position, phone });
+    const pin = $('#w-pin').value.trim();
+    if (!/^\d{4}$/.test(pin)) { setErr('Your PIN must be exactly 4 digits.'); $('#w-pin').focus(); return; }
+    await saveProfile({ first, last, company, position, phone, pin });
     wrap.classList.remove('show');
     startApp();
     toast(`Welcome, ${first} — pins you add show your name`, 'ok');

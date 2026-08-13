@@ -451,6 +451,7 @@ main { flex: 1; position: relative; min-height: 0; }
 }
 .crew-meta { font-size: 13px; color: var(--muted); }
 .crew-phone { font-size: 14px; color: var(--accent); text-decoration: none; }
+.crew-actions { display: flex; align-items: center; gap: 6px; flex: none; }
 
 /* ── Settings ────────────────────────────────────────────────────── */
 .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -578,6 +579,19 @@ main { flex: 1; position: relative; min-height: 0; }
   font-family: inherit;
 }
 .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--accent); }
+
+/* iOS date/time fields: kill the native styling that ignores width and
+   centers the text, so they line up with every other field */
+input[type="datetime-local"], input[type="date"] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; min-width: 0; max-width: 100%;
+  min-height: 47px; text-align: left;
+  display: block;
+}
+input[type="datetime-local"]::-webkit-date-and-time-value,
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left; margin: 0;
+}
 
 #modal.photo-modal {
   background: none; border: none; padding: 0; box-shadow: none;

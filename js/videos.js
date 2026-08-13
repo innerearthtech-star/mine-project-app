@@ -118,6 +118,14 @@ function wireUpload(root) {
   const wellInput = $('#v-well', root);
   wellInput.oninput = () => { selectedWell = null; renderWellResults(); };
   wellInput.onfocus = renderWellResults;
+  // dismissing the keyboard (or tapping elsewhere) closes the well list —
+  // the delay lets a tap on one of the options land first
+  wellInput.onblur = () => setTimeout(() => {
+    if (document.activeElement !== wellInput) {
+      const box = $('#v-well-results');
+      if (box) box.innerHTML = '';
+    }
+  }, 200);
 
   $('#v-file', root).onchange = e => { pickedFile = e.target.files[0] || null; };
   $('#v-shots', root).onchange = e => { pickedShots = [...e.target.files]; };

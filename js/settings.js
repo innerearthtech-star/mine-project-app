@@ -3,7 +3,7 @@
 import { $, $$, esc, on, toast, confirmDlg, modalForm, sha256hex, fmtTime, formatPhone, normalizePhone } from './util.js';
 import { CONFIG } from './config.js';
 import {
-  S, projectName, setSetting, saveProfile, unlockOwner, lockOwner, activeUsers, removeUser,
+  S, projectName, setSetting, saveProfile, unlockOwner, lockOwner, activeUsers, removeUser, setUserPin,
 } from './store.js';
 import { syncState, kick } from './sync.js';
 
@@ -28,7 +28,10 @@ function renderCrew() {
           <div class="crew-meta">${esc(u.position || '')}${u.position && u.company ? ' · ' : ''}${esc(u.company || '')}</div>
           ${tel ? `<a class="crew-phone" href="tel:${tel}">${esc(formatPhone(u.phone))}</a>` : ''}
         </div>
-        ${S.owner && !me ? `<button class="icon-btn tiny danger-ghost" data-remove="${u.id}" title="Remove">✕</button>` : ''}
+        <div class="crew-actions">
+          ${S.owner && !me && u.pin ? `<button class="btn small ghost" data-resetpin="${u.id}" title="Clear their PIN so they can set a new one">Reset PIN</button>` : ''}
+          ${S.owner && !me ? `<button class="icon-btn tiny danger-ghost" data-remove="${u.id}" title="Remove">✕</button>` : ''}
+        </div>
       </div>`;
   }).join('');
 }
@@ -137,6 +140,7 @@ export function renderSettings() {
         { name: 'company', label: 'Company', value: S.profile.company, required: true },
         { name: 'position', label: 'Position', value: S.profile.position, required: true },
         { name: 'phone', label: 'Cell number', type: 'tel', value: formatPhone(S.profile.phone), required: true },
+        { name: 'pin', label: 'New 4-digit PIN (blank = keep current)', type: 'password', inputmode: 'numeric' },
       ],
     });
     if (!res) return;
@@ -145,9 +149,21 @@ export function renderSettings() {
     }
     const phone = normalizePhone(res.phone);
     if (!phone) { toast('Enter a valid 10-digit cell number', 'warn'); return; }
-    await saveProfile({ first: res.first, last: res.last, company: res.company, position: res.position, phone });
+    const pin = (res.pin || '').trim();
+    if (pin && !/^\d{4}$/.test(pin)) { toast('PIN must be exactly 4 digits', 'warn'); return; }
+    await saveProfile({ first: res.first, last: res.last, company: res.company, position: res.position, phone, pin: pin || undefined });
     toast('Your details updated', 'ok');
   };
+
+  // owner-only: clear someone's PIN so they can set a fresh one
+  $$('[data-resetpin]').forEach(btn => btn.onclick = async () => {
+    const u = activeUsers().find(x => x.id === btn.dataset.resetpin);
+    if (!u) return;
+    if (await confirmDlg(`Reset ${u.name}'s PIN? They'll set a new one next time they sign in.`, { okText: 'Reset PIN' })) {
+      await setUserPin(u.id, null);
+      toast(`${u.name}'s PIN was reset`, 'ok');
+    }
+  });
 
   // owner-only: remove someone from the roster
   $$('[data-remove]').forEach(btn => btn.onclick = async () => {

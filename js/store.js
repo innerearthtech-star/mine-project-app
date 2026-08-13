@@ -4,7 +4,7 @@
 
 import { DB } from './db.js';
 import { CONFIG } from './config.js';
-import { uuid, nowISO, emit } from './util.js';
+import { uuid, nowISO, emit, sha256hex } from './util.js';
 
 export const S = {
   profile: null,      // {id, first, last, name, company, position, phone}
@@ -193,13 +193,28 @@ export async function saveProfile(data) {
     phone: data.phone || '',
   };
   await DB.kvSet('profile', S.profile);
+  const existing = findRow('users', id);
+  // PIN: keep the current one unless a new one was provided (stored hashed,
+  // salted with the user id — never plaintext in the shared table)
+  let pin = existing?.pin || null;
+  if (data.pin) pin = await sha256hex(`${id}:${data.pin}`);
   await save('users', {
     id, first, last, name: S.profile.name,
     company: S.profile.company, position: S.profile.position, phone: S.profile.phone,
-    created_at: findRow('users', id)?.created_at || nowISO(),
+    pin,
+    created_at: existing?.created_at || nowISO(),
     deleted: false,
   });
   emit('profile');
+}
+
+// PIN helpers for the tap-your-name sign-in
+export const checkUserPin = async (u, pinTry) =>
+  Boolean(u.pin) && u.pin === await sha256hex(`${u.id}:${pinTry}`);
+export async function setUserPin(id, pinRaw) {
+  const u = findRow('users', id);
+  if (!u) return;
+  await save('users', { ...u, pin: pinRaw ? await sha256hex(`${id}:${pinRaw}`) : null, deleted: false });
 }
 
 // Owner removes someone from the roster.
