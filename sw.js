@@ -5,7 +5,7 @@
 // - Uploaded photos cached after first view
 // - Supabase API calls always go to the network (sync.js queues offline)
 
-const VERSION = 'v10';
+const VERSION = 'v12';
 const SHELL_CACHE = `shell-${VERSION}`;
 const TILE_CACHE = 'tiles-v1';
 const PHOTO_CACHE = 'photos-v1';
@@ -39,9 +39,16 @@ const SHELL = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(SHELL_CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())
-  );
+  // NOTE: no skipWaiting() here — a new version waits until the user taps
+  // "Update" in the app (app.js posts SKIP_WAITING), so we never swap the
+  // code out from under someone mid-task.
+  e.waitUntil(caches.open(SHELL_CACHE).then(c => c.addAll(SHELL)));
+});
+
+self.addEventListener('message', e => {
+  if (e.data === 'SKIP_WAITING' || (e.data && e.data.type === 'SKIP_WAITING')) {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', e => {

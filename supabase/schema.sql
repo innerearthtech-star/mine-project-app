@@ -42,12 +42,14 @@ create table if not exists contacts (
   company text not null,
   name text not null,
   phone text not null,
+  position text default '',            -- title / role (optional)
   created_by text,
   author_id text,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   deleted boolean default false
 );
+alter table contacts add column if not exists position text default '';
 
 -- Shared: app settings (project/mine name)
 create table if not exists app_settings (

@@ -21,6 +21,10 @@ export async function openWell(id) {
   if (seq !== openSeq) return; // a newer openWell superseded this one
 
   const pending = []; // composer photo attachments: {path, blob, url}
+  // one Directions button that opens the right maps app for the device
+  const dirUrl = isIOS()
+    ? `https://maps.apple.com/?daddr=${b.lat},${b.lng}&dirflg=d`
+    : `https://www.google.com/maps/dir/?api=1&destination=${b.lat},${b.lng}&travelmode=driving`;
   const el = sheet(`
     <div class="well-head">
       <div class="well-head-main">
@@ -33,11 +37,8 @@ export async function openWell(id) {
 
     <div class="well-actions">
       <a class="btn primary" id="w-gmaps" target="_blank" rel="noopener"
-         href="https://www.google.com/maps/dir/?api=1&destination=${b.lat},${b.lng}&travelmode=driving">
-         ${ic('nav')} Directions</a>
+         href="${dirUrl}">${ic('nav')} Directions</a>
       <button class="btn" id="w-share">${ic('share')} Send</button>
-      ${isIOS() ? `<a class="btn" target="_blank" rel="noopener"
-         href="https://maps.apple.com/?daddr=${b.lat},${b.lng}">${ic('apple')} Apple Maps</a>` : ''}
       ${S.owner ? `<button class="btn" id="w-run">${ic('bolt')} Log run</button>` : ''}
     </div>
 
@@ -121,19 +122,21 @@ export async function openWell(id) {
     const res = await modalForm({
       title: 'Well data',
       fields: [
-        { name: 'roof_level', label: 'Roof level (ft)', value: cur.roof_level || '', placeholder: 'e.g. 412' },
-        { name: 'casing_bottom', label: 'Bottom of casing (ft)', value: cur.casing_bottom || '', placeholder: 'e.g. 380' },
-        { name: 'mine_floor', label: 'Mine floor (ft)', value: cur.mine_floor || '', placeholder: 'e.g. 450' },
+        { name: 'roof_level', label: 'Roof level (ft)', type: 'number', inputmode: 'decimal', value: cur.roof_level || '', placeholder: 'e.g. 412' },
+        { name: 'casing_bottom', label: 'Bottom of casing (ft)', type: 'number', inputmode: 'decimal', value: cur.casing_bottom || '', placeholder: 'e.g. 380' },
+        { name: 'mine_floor', label: 'Mine floor (ft)', type: 'number', inputmode: 'decimal', value: cur.mine_floor || '', placeholder: 'e.g. 450' },
       ],
     });
     if (!res) return;
-    await save('boreholes', {
-      ...findRow('boreholes', id),
-      roof_level: (res.roof_level || '').trim(),
-      casing_bottom: (res.casing_bottom || '').trim(),
-      mine_floor: (res.mine_floor || '').trim(),
-    });
-    openWell(id);
+    const roof_level = (res.roof_level || '').trim();
+    const casing_bottom = (res.casing_bottom || '').trim();
+    const mine_floor = (res.mine_floor || '').trim();
+    await save('boreholes', { ...findRow('boreholes', id), roof_level, casing_bottom, mine_floor });
+    // update just the depth cells so a half-typed note + photos survive
+    const rows = $$('.well-data .depth-row b', el);
+    if (rows[0]) rows[0].textContent = roof_level ? fmtFt(roof_level) : '—';
+    if (rows[1]) rows[1].textContent = casing_bottom ? fmtFt(casing_bottom) : '—';
+    if (rows[2]) rows[2].textContent = mine_floor ? fmtFt(mine_floor) : '—';
   };
 
   // rename

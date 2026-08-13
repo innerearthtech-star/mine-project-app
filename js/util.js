@@ -165,6 +165,7 @@ export function modalForm({ title, fields, okText = 'Save', danger = false }) {
               ? `<textarea name="${esc(f.name)}" placeholder="${esc(f.placeholder || '')}" rows="3">${esc(f.value || '')}</textarea>`
               : `<input name="${esc(f.name)}" type="${esc(f.type || 'text')}" value="${esc(f.value || '')}"
                    placeholder="${esc(f.placeholder || '')}" ${f.required ? 'required' : ''}
+                   ${f.inputmode ? `inputmode="${esc(f.inputmode)}"` : ''} ${f.type === 'number' ? 'step="any"' : ''}
                    autocomplete="off" enterkeyhint="done">`}
           </label>`).join('')}
         <div class="modal-actions">

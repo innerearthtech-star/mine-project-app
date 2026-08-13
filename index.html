@@ -28,9 +28,16 @@
           <path d="M26 33l12-12M26 21l12 12" stroke="#f5a524" stroke-width="3" stroke-linecap="round"/>
         </svg>
       </div>
-      <h1 id="welcome-title">Coal Mine Project</h1>
-      <p class="welcome-sub">Tell us who you are to get started</p>
+      <h1 id="welcome-title">Mine Project</h1>
+      <p class="welcome-sub">Sign in to get started</p>
+
+      <div id="welcome-resume"></div>
+
       <form id="welcome-form">
+        <div class="wl-form-head" id="wl-form-head">New here? Create your account</div>
+        <label class="wl" id="w-code-wrap">Access code
+          <input id="w-code" type="text" placeholder="Ask whoever shared the app" autocomplete="off" autocapitalize="none" maxlength="40">
+        </label>
         <div class="welcome-row">
           <label class="wl">First name
             <input id="w-first" type="text" placeholder="e.g. John" autocomplete="given-name" maxlength="40" required>
@@ -156,6 +163,11 @@
   <div id="modal-backdrop"></div>
   <div id="modal"></div>
   <div id="toasts"></div>
+  <div id="update-bar">
+    <span class="msg">✨ New version available</span>
+    <button class="btn small primary" id="update-btn">Update</button>
+    <button class="icon-btn" id="update-dismiss" title="Later">✕</button>
+  </div>
 
   <script src="libs/leaflet/leaflet.js"></script>
   <script src="libs/supabase.js"></script>

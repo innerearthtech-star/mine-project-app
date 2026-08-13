@@ -11,6 +11,11 @@ export const CONFIG = {
   // Change this to anything you like before sharing the app.
   OWNER_CODE: 'Wackers1',
 
+  // Join code required to create a NEW account (light gate so randoms who
+  // stumble on the link can't sign up). Tell it to people you invite.
+  // Set to '' to turn the gate off. Returning users (tap-your-name) skip it.
+  JOIN_CODE: 'Wackers',
+
   // Shown until a mine/project name is set in Settings.
   DEFAULT_PROJECT_NAME: 'Mine',
 

@@ -68,7 +68,8 @@ export function renderVideosTab() {
         <button class="btn primary big" id="v-upload">Upload</button>
         <div class="setting-hint">Uploads are resumable — if Starlink hiccups it picks up where
         it left off. Keep this page open until it finishes.</div>
-    </section>` : ''}
+    </section>` : `
+    <div class="setting-hint" style="margin-bottom:12px">📼 Search and watch inspection videos below.${isConfigured() ? ' Uploading is owner-only (unlock owner tools in Settings).' : ''}</div>`}
 
     <div class="contacts-top">
       <input id="video-search" type="search" placeholder="Search videos by well…" autocomplete="off">
@@ -160,8 +161,11 @@ async function startUpload({ well, ts, note, file, shots }) {
     const f = $('#v-file'); if (f) f.value = '';
     const sh = $('#v-shots'); if (sh) sh.value = '';
     const t = $('#v-ts'); if (t) t.value = toLocalInput();
+    const n = $('#v-note'); if (n) n.value = '';
+    const w = $('#v-well'); if (w) w.value = '';
     pickedFile = null;
     pickedShots = [];
+    selectedWell = null; // don't carry the well/note onto the next inspection
     toast(`Inspection saved to ${well.name}`, 'ok');
   };
 

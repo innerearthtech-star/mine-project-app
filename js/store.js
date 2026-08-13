@@ -144,9 +144,9 @@ export function newNote(boreholeId, text, photos = []) {
     created_at: nowISO(), deleted: false,
   });
 }
-export function newContact(company, name, phone) {
+export function newContact(company, name, phone, position = '') {
   return save('contacts', {
-    id: uuid(), company, name, phone,
+    id: uuid(), company, name, phone, position,
     created_by: S.profile.name, author_id: S.profile.id,
     created_at: nowISO(), deleted: false,
   });
@@ -206,6 +206,22 @@ export async function saveProfile(data) {
 export async function removeUser(id) {
   const u = findRow('users', id);
   if (u) await softDelete('users', u);
+}
+
+// Sign back in as an existing crew member (e.g. after installing the app,
+// which on iOS gets fresh storage separate from the browser). Re-adopts
+// their identity + roster row so no duplicate is created.
+export async function resumeAs(userId) {
+  const u = findRow('users', userId);
+  if (!u) return false;
+  S.profile = {
+    id: u.id, first: u.first, last: u.last, name: u.name,
+    company: u.company || '', position: u.position || '', phone: u.phone || '',
+  };
+  await DB.kvSet('profile', S.profile);
+  await save('users', { ...u, deleted: false }); // reaffirm they're active
+  emit('profile');
+  return true;
 }
 
 // True if the owner has removed *this* device's user from the roster.

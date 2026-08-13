@@ -98,11 +98,12 @@ async function pushOutbox() {
       continue;
     }
     // Only definitive data errors (Postgres constraint/data/syntax classes,
-    // PostgREST request errors) count toward the drop limit. Anything else —
-    // 5xx, rate limits, HTML error pages, paused project, offline — is
-    // transient: stop and retry next cycle so field data is never discarded.
+    // PostgREST request + schema-cache errors like a missing column) count
+    // toward the drop limit. Anything else — 5xx, rate limits, HTML error
+    // pages, paused project, offline — is transient: stop and retry next
+    // cycle so field data is never discarded.
     const code = String(error.code || '');
-    const isDataError = /^(22|23|42)\d{3}$/.test(code) || /^PGRST1\d\d$/.test(code);
+    const isDataError = /^(22|23|42)\d{3}$/.test(code) || /^PGRST[12]\d\d$/.test(code);
     if (!isDataError) throw new Error(`push failed (will retry): ${error.message}`);
     op.attempts = (op.attempts || 0) + 1;
     if (op.attempts >= 5) {
@@ -111,7 +112,8 @@ async function pushOutbox() {
       await DB.del('outbox', op.id);
     } else {
       await DB.put('outbox', op);
-      throw new Error(`push failed: ${error.message}`);
+      // do NOT throw — one bad row must not block the rest of the queue
+      // (e.g. a depth edit before the DB columns exist shouldn't stall pins)
     }
   }
 }

@@ -21,9 +21,9 @@ export function initMap() {
     zoomControl: false,
     attributionControl: false, // replaced by our own "i" button
     tap: false,
-    zoomSnap: 0.5,             // smoother pinch-zoom (lands on half levels)
-    zoomDelta: 0.5,
+    zoomSnap: 0,               // fully continuous pinch-zoom (no step snapping)
     wheelPxPerZoomLevel: 90,
+    zoomAnimationThreshold: 4,
   });
 
   // crossOrigin lets the service worker verify tile responses before
@@ -31,7 +31,9 @@ export function initMap() {
   // keepBuffer/updateWhenZooming tuned so pan & pinch feel responsive.
   const tileOpts = {
     maxZoom: 21, maxNativeZoom: 19, crossOrigin: true,
-    keepBuffer: 4, updateWhenZooming: false, updateWhenIdle: false,
+    // updateWhenIdle:true → don't fetch tiles mid-gesture, so the pan/pinch
+    // itself stays smooth; tiles fill in the moment you let go
+    keepBuffer: 3, updateWhenZooming: false, updateWhenIdle: true,
   };
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', tileOpts).addTo(map);
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', tileOpts).addTo(map);
@@ -54,11 +56,7 @@ export function initMap() {
   });
 
   // wire the "Open well" button inside a pin's popup
-  map.on('popupopen', e => {
-    const node = e.popup._contentNode;
-    const btn = node && node.querySelector('[data-open]');
-    if (btn) btn.onclick = () => { map.closePopup(); openWell(btn.dataset.open); };
-  });
+  map.on('popupopen', e => wirePopupBtn(e.popup));
 
   renderMarkers();
   // debounced: a bulk sync merge fires one event per row — render once
@@ -90,20 +88,28 @@ function pinIcon(b) {
 
 // Quick-look popup: name + key depths + a button into the full well
 function popupHTML(b) {
-  const d = [];
-  if (b.roof_level) d.push(`Roof <b>${esc(fmtFt(b.roof_level))}</b>`);
-  if (b.casing_bottom) d.push(`Casing <b>${esc(fmtFt(b.casing_bottom))}</b>`);
-  if (b.mine_floor) d.push(`Floor <b>${esc(fmtFt(b.mine_floor))}</b>`);
+  const row = (label, v) => v
+    ? `<div class="pin-pop-row"><span>${label}</span><b>${esc(fmtFt(v))}</b></div>` : '';
+  const rows = row('Roof level', b.roof_level)
+    + row('Bottom of casing', b.casing_bottom)
+    + row('Mine floor', b.mine_floor);
   return `<div class="pin-pop">
     <div class="pin-pop-name">${esc(b.name)}</div>
-    ${d.length ? `<div class="pin-pop-depths">${d.join('<span class="dot-sep">·</span>')}</div>`
-      : `<div class="pin-pop-empty">No well data yet</div>`}
+    ${rows || `<div class="pin-pop-empty">No well data yet</div>`}
     <button class="pin-pop-open" data-open="${b.id}">Open well ›</button>
   </div>`;
 }
 
 function markerSig(b) {
   return `${b.name}|${b.roof_level || ''}|${b.casing_bottom || ''}|${b.mine_floor || ''}`;
+}
+
+// (re)bind the popup's "Open well" button — needed again after a live
+// sync updates the popup content while it's open
+function wirePopupBtn(popup) {
+  const node = popup && popup._contentNode;
+  const btn = node && node.querySelector('[data-open]');
+  if (btn) btn.onclick = () => { map.closePopup(); openWell(btn.dataset.open); };
 }
 
 function renderMarkers() {
@@ -122,6 +128,7 @@ function renderMarkers() {
       if (existing._sig !== sig) {
         existing.setIcon(pinIcon(b));
         existing.setPopupContent(popupHTML(b));
+        if (existing.isPopupOpen()) wirePopupBtn(existing.getPopup());
         existing._sig = sig;
       }
     } else {
@@ -191,6 +198,7 @@ function wireControls() {
   };
 
   $('#btn-add-pin').onclick = () => {
+    stopPlacing(); // cancel any in-progress "tap to place" before re-entering
     sheet(`
       <h3>Add borehole</h3>
       <button class="btn primary big" id="add-here">${icon('crosshair')} Pin at my location</button>
@@ -233,13 +241,24 @@ function wireControls() {
       el.onclick = () => {
         const b = activeBoreholes().find(x => x.id === el.dataset.id);
         hideSearch();
-        if (b) { flyToWell(b); openWell(b.id); }
+        if (b) {
+          // fly there and show the quick-look popup (not the full sheet).
+          // timeout (not 'moveend') so it still opens when the map is
+          // already centered on that well and flyTo is a no-op.
+          flyToWell(b);
+          const m = markers.get(b.id);
+          if (m) setTimeout(() => m.openPopup(), 850);
+        }
       };
     });
   };
   input.oninput = debounce(render, 100);
   input.onfocus = () => { $('#search-panel').classList.add('open'); render(); };
   $('#search-close').onclick = hideSearch;
+  // dismissing the keyboard closes the well list (delay lets a result tap land)
+  input.onblur = () => setTimeout(() => {
+    if (document.activeElement !== input) hideSearch();
+  }, 200);
   function hideSearch() {
     $('#search-panel').classList.remove('open');
     input.value = '';

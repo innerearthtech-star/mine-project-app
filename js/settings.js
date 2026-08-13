@@ -52,9 +52,9 @@ export function renderSettings() {
       <div class="setting-row">
         <div><div class="setting-label">Mine / project name</div>
         <div class="setting-value">${esc(projectName())} Project</div></div>
-        <button class="btn small" id="s-project">Edit</button>
+        ${S.owner ? `<button class="btn small" id="s-project">Edit</button>` : ''}
       </div>
-      <div class="setting-hint">Everyone sees this name — set it once you know the mine.</div>
+      <div class="setting-hint">👥 Everyone sees this name.${S.owner ? ' Only you can change it.' : ' Only the owner can change it.'}</div>
     </section>
 
     <section class="card">
@@ -86,12 +86,12 @@ export function renderSettings() {
     </section>
 
     <section class="card">
-      <h4>My Job tab</h4>
+      <h4>Owner tools</h4>
       ${S.owner
-        ? `<div class="setting-hint">Unlocked on this phone — runs, hours and night stays are yours only.</div>
-           <button class="btn small ghost" id="s-lock">Hide Job tab on this phone</button>`
-        : `<div class="setting-hint">The Job tab (billing, runs, hours) is private. Enter the owner code to show it on this phone.</div>
-           <button class="btn small primary" id="s-unlock">Unlock Job tab</button>`}
+        ? `<div class="setting-hint">🔓 Unlocked on this phone — your private <b>Job tab</b> (runs, hours, night stays) and <b>video uploading</b> are on. Just for you.</div>
+           <button class="btn small ghost" id="s-lock">Lock on this phone</button>`
+        : `<div class="setting-hint">🔒 The <b>Job tab</b> (billing, runs, hours) and <b>uploading videos</b> are owner-only. Enter your code to turn them on for this phone.</div>
+           <button class="btn small primary" id="s-unlock">Unlock owner tools</button>`}
     </section>
 
     <section class="card">
@@ -112,7 +112,8 @@ export function renderSettings() {
     </section>
   `;
 
-  $('#s-project').onclick = async () => {
+  const projectBtn = $('#s-project');
+  if (projectBtn) projectBtn.onclick = async () => {
     const res = await modalForm({
       title: 'Mine / project name',
       fields: [{ name: 'v', label: 'Name (e.g. Black Thunder)', value: getRaw(), required: true }],
