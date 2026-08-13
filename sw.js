@@ -5,7 +5,7 @@
 // - Uploaded photos cached after first view
 // - Supabase API calls always go to the network (sync.js queues offline)
 
-const VERSION = 'v2';
+const VERSION = 'v5';
 const SHELL_CACHE = `shell-${VERSION}`;
 const TILE_CACHE = 'tiles-v1';
 const PHOTO_CACHE = 'photos-v1';
@@ -28,9 +28,11 @@ const SHELL = [
   './js/job.js',
   './js/contacts.js',
   './js/settings.js',
+  './js/videos.js',
   './libs/leaflet/leaflet.js',
   './libs/leaflet/leaflet.css',
   './libs/supabase.js',
+  './libs/tus.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-mask.png',
@@ -77,8 +79,9 @@ self.addEventListener('fetch', e => {
 
   // Supabase API / realtime — never intercept
   if (url.hostname.endsWith('.supabase.co')) {
-    // …except public photo files, which we cache for offline viewing
-    if (url.pathname.includes('/storage/v1/object/public/')) {
+    // …except public PHOTOS, cached for offline viewing. Videos are
+    // deliberately not cached — multi-GB files would nuke the quota.
+    if (url.pathname.includes('/storage/v1/object/public/photos/')) {
       e.respondWith(cacheFirst(PHOTO_CACHE, e.request, PHOTO_MAX));
     }
     return;

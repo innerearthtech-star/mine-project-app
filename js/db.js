@@ -2,7 +2,7 @@
 // (offline-first: writes land here immediately, sync.js pushes later)
 
 const DB_NAME = 'coalmine-app';
-const DB_VER = 1;
+const DB_VER = 2; // v2: videos store
 let dbp = null;
 
 function open() {
@@ -18,6 +18,7 @@ function open() {
       mk('boreholes', 'id');
       mk('notes', 'id');
       mk('contacts', 'id');
+      mk('videos', 'id');       // metadata only — the files live in Supabase
       mk('runs', 'id');
       mk('shifts', 'id');
       mk('jobs', 'id');
@@ -25,7 +26,16 @@ function open() {
       mk('outbox', 'id');        // pending writes waiting for signal
       mk('photos', 'path');      // {path, blob, uploaded}
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onblocked = () => {
+      dbp = null;
+      reject(new Error('App update blocked — close other tabs of this app, then reload.'));
+    };
+    req.onsuccess = () => {
+      const db = req.result;
+      // let a future version upgrade in another tab proceed instead of hanging
+      db.onversionchange = () => { db.close(); dbp = null; };
+      resolve(db);
+    };
     req.onerror = () => reject(req.error);
   });
   return dbp;

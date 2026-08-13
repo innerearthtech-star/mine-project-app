@@ -13,6 +13,7 @@ export const S = {
   boreholes: [],
   notes: [],
   contacts: [],
+  videos: [],
   runs: [],
   shifts: [],
   jobs: [],
@@ -23,7 +24,7 @@ export const S = {
 export const PRIVATE_TABLES = new Set(['runs', 'shifts', 'jobs']);
 // Local store name for each synced table (Supabase table 'app_settings' ⇔ local 'settings')
 const LOCAL_STORE = t => (t === 'app_settings' ? 'settings' : t);
-export const SYNCED_TABLES = ['boreholes', 'notes', 'contacts', 'runs', 'shifts', 'jobs', 'app_settings'];
+export const SYNCED_TABLES = ['boreholes', 'notes', 'contacts', 'videos', 'runs', 'shifts', 'jobs', 'app_settings'];
 
 export async function loadAll() {
   S.profile = (await DB.kvGet('profile')) || null;
@@ -32,6 +33,7 @@ export async function loadAll() {
   S.boreholes = await DB.all('boreholes');
   S.notes = await DB.all('notes');
   S.contacts = await DB.all('contacts');
+  S.videos = await DB.all('videos');
   S.runs = await DB.all('runs');
   S.shifts = await DB.all('shifts');
   S.jobs = await DB.all('jobs');
@@ -90,6 +92,10 @@ export const notesFor = id =>
 export const activeContacts = () =>
   S.contacts.filter(c => !c.deleted)
     .sort((a, b) => (a.company + a.name).localeCompare(b.company + b.name));
+export const activeVideos = () =>
+  S.videos.filter(v => !v.deleted).sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+export const videosFor = id =>
+  activeVideos().filter(v => v.borehole_id === id);
 export const activeRuns = () =>
   S.runs.filter(r => !r.deleted).sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
 export const activeShifts = () =>
@@ -127,6 +133,14 @@ export function newContact(company, name, phone) {
   return save('contacts', {
     id: uuid(), company, name, phone,
     created_by: S.profile.name, author_id: S.profile.id,
+    created_at: nowISO(), deleted: false,
+  });
+}
+export function newVideo(boreholeId, ts, note, path, size, screenshots = []) {
+  return save('videos', {
+    id: uuid(), borehole_id: boreholeId, ts, note: note || '',
+    path: path || null, size: size || 0, screenshots,
+    uploaded_by: S.profile.name, author_id: S.profile.id,
     created_at: nowISO(), deleted: false,
   });
 }

@@ -26,6 +26,21 @@ SUPABASE_ANON_KEY: 'eyJhbGciOi…',
 > secret code you want. That code is what unlocks **your** private Job tab
 > (billing / runs / hours) — don't share it with the other crews.
 
+### For video inspections (big files)
+
+The free plan caps uploads at 50 MB per file, so inspection videos need two
+extra one-time steps in the Supabase dashboard:
+
+1. **Upgrade the project to Pro** ($25/month — for a one-month job you can
+   downgrade/cancel when it's done). With a couple hundred GB of video and
+   normal crew viewing, expect roughly **$30–50 total for the month**.
+2. Go to **Storage → Settings** (or Project Settings → Storage) and raise the
+   **Upload file size limit** to `50 GB`.
+
+Uploads from the Videos tab are resumable — a Starlink hiccup pauses the
+upload and it picks back up instead of restarting. Before you cancel the
+project after the job, download anything you want to keep.
+
 ## Step 2 · Vercel (puts the app on a link)
 
 1. Push this folder to a GitHub repo (it's already a git repo with a commit).

@@ -9,6 +9,7 @@ import { initMap, refreshMapSize } from './map.js';
 import { initJob, renderJob } from './job.js';
 import { initContacts, renderContacts } from './contacts.js';
 import { initSettings, renderSettings } from './settings.js';
+import { initVideos, renderVideoList, refreshUploadDefaults } from './videos.js';
 
 let currentTab = 'map';
 
@@ -16,7 +17,13 @@ async function boot() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
-  await DB.init();
+  try {
+    await DB.init();
+  } catch (e) {
+    document.body.innerHTML = `<div style="padding:40px 24px;font-family:sans-serif;color:#e8eef4;background:#0b0f14;min-height:100vh">
+      <h2>Can't start</h2><p>${e.message || e}</p></div>`;
+    return;
+  }
   // ask the browser to protect our storage from eviction — this phone's
   // unsynced pins/notes/hours live in IndexedDB until signal returns
   if (navigator.storage && navigator.storage.persist) {
@@ -28,6 +35,7 @@ async function boot() {
   initJob();
   initContacts();
   initSettings();
+  initVideos();
 
   on('data:app_settings', renderHeader);
   on('sync', renderHeader);
@@ -89,6 +97,7 @@ function showTab(name) {
   $$('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   if (name === 'map') { initMap(); refreshMapSize(); }
+  if (name === 'videos') { refreshUploadDefaults(); renderVideoList(); }
   if (name === 'job') renderJob();
   if (name === 'contacts') renderContacts();
   if (name === 'settings') renderSettings();

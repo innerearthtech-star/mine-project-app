@@ -50,6 +50,26 @@ create table if not exists app_settings (
   deleted boolean default false
 );
 
+-- Shared: video inspections (video files live in the 'videos' storage
+-- bucket; screenshots live in the 'photos' bucket under screens/…)
+create table if not exists videos (
+  id uuid primary key,
+  borehole_id uuid not null,
+  ts timestamptz not null,             -- when the inspection was run
+  note text default '',
+  path text,                           -- storage path of the video file (may be null)
+  size bigint default 0,
+  screenshots jsonb default '[]',      -- array of screenshot storage paths
+  uploaded_by text,
+  author_id text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  deleted boolean default false
+);
+-- keep existing projects in step when re-running this file
+alter table videos add column if not exists screenshots jsonb default '[]';
+alter table videos alter column path drop not null;
+
 -- Private (owner only): runs per borehole
 create table if not exists runs (
   id uuid primary key,
@@ -62,7 +82,7 @@ create table if not exists runs (
   deleted boolean default false
 );
 
--- Private: field-hours shifts (leave hotel → back at hotel)
+-- Private: field-hours shifts (leave hotel -> back at hotel)
 create table if not exists shifts (
   id uuid primary key,
   start_ts timestamptz not null,
@@ -73,7 +93,7 @@ create table if not exists shifts (
   deleted boolean default false
 );
 
--- Private: night-stay periods (first night → checkout)
+-- Private: night-stay periods (first night -> checkout)
 create table if not exists jobs (
   id uuid primary key,
   night_start date not null,
@@ -90,7 +110,7 @@ create table if not exists jobs (
 do $$
 declare t text;
 begin
-  foreach t in array array['boreholes','notes','contacts','app_settings','runs','shifts','jobs']
+  foreach t in array array['boreholes','notes','contacts','app_settings','runs','shifts','jobs','videos']
   loop
     execute format('alter table %I enable row level security', t);
     execute format('drop policy if exists "open access" on %I', t);
@@ -114,7 +134,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['boreholes','notes','contacts','app_settings','runs','shifts','jobs']
+  foreach t in array array['boreholes','notes','contacts','app_settings','runs','shifts','jobs','videos']
   loop
     execute format('drop trigger if exists lww on %I', t);
     execute format('create trigger lww before update on %I for each row execute function lww_guard()', t);
@@ -125,7 +145,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['boreholes','notes','contacts','app_settings','runs','shifts','jobs']
+  foreach t in array array['boreholes','notes','contacts','app_settings','runs','shifts','jobs','videos']
   loop
     begin
       execute format('alter publication supabase_realtime add table %I', t);
@@ -134,17 +154,27 @@ begin
   end loop;
 end $$;
 
--- ── Storage bucket for photos ──────────────────────────────────────
+-- ── Storage buckets: photos + video inspections ────────────────────
 insert into storage.buckets (id, name, public)
 values ('photos', 'photos', true)
 on conflict (id) do nothing;
 
-drop policy if exists "open photo read" on storage.objects;
-create policy "open photo read" on storage.objects
-  for select using (bucket_id = 'photos');
-drop policy if exists "open photo write" on storage.objects;
-create policy "open photo write" on storage.objects
-  for insert with check (bucket_id = 'photos');
-drop policy if exists "open photo update" on storage.objects;
-create policy "open photo update" on storage.objects
-  for update using (bucket_id = 'photos');
+insert into storage.buckets (id, name, public)
+values ('videos', 'videos', true)
+on conflict (id) do nothing;
+
+do $$
+declare b text;
+begin
+  foreach b in array array['photos','videos']
+  loop
+    execute format('drop policy if exists "open %s read" on storage.objects', b);
+    execute format('create policy "open %s read" on storage.objects for select using (bucket_id = %L)', b, b);
+    execute format('drop policy if exists "open %s write" on storage.objects', b);
+    execute format('create policy "open %s write" on storage.objects for insert with check (bucket_id = %L)', b, b);
+    execute format('drop policy if exists "open %s update" on storage.objects', b);
+    execute format('create policy "open %s update" on storage.objects for update using (bucket_id = %L)', b, b);
+    execute format('drop policy if exists "open %s delete" on storage.objects', b);
+    execute format('create policy "open %s delete" on storage.objects for delete using (bucket_id = %L)', b, b);
+  end loop;
+end $$;

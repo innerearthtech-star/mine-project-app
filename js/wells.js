@@ -5,9 +5,10 @@ import {
   fmtDateTime, compressImage, uuid, isIOS, toLocalInput, nowISO,
 } from './util.js';
 import {
-  S, findRow, save, softDelete, notesFor, newNote, newRun, addPhotoBlob, photoURL,
+  S, findRow, save, softDelete, notesFor, newNote, newRun, addPhotoBlob, photoURL, videosFor,
 } from './store.js';
 import { kick } from './sync.js';
+import { videoCard, wireVideoCards } from './videos.js';
 
 let openSeq = 0; // last-tapped well wins if two sheets race to open
 
@@ -52,6 +53,8 @@ export async function openWell(id) {
       ${S.owner ? `<button class="btn small danger-ghost" id="w-delete">${ic('trash')} Delete</button>` : ''}
     </div>
 
+    <div id="w-videos-block"></div>
+
     <h4 class="notes-title">Notes <span class="count">${notes.length}</span></h4>
     <div class="note-composer">
       <textarea id="n-text" rows="2" placeholder="Add a note…"></textarea>
@@ -63,9 +66,26 @@ export async function openWell(id) {
       <input type="file" id="n-photo-input" accept="image/*" capture="environment" multiple hidden>
     </div>
     <div class="notes-list" id="notes-list"><div class="loading">…</div></div>
-  `, { onClose: () => pending.forEach(p => URL.revokeObjectURL(p.url)) });
+  `, { onClose: () => {
+    pending.forEach(p => URL.revokeObjectURL(p.url));
+    // stop any video still streaming inside the closed sheet
+    $$('.video-player', el).forEach(p => { p.hidden = true; p.innerHTML = ''; });
+  } });
 
   renderNotes(el, b);
+  // videos section re-renders itself after a delete, so the card list and
+  // count stay honest without touching the rest of the sheet
+  const renderWellVideos = () => {
+    const wrap = $('#w-videos-block', el);
+    if (!wrap) return;
+    const vids = videosFor(id);
+    wrap.innerHTML = vids.length ? `
+      <h4 class="notes-title">Inspection videos <span class="count">${vids.length}</span></h4>
+      <div class="well-videos">${vids.map(v => videoCard(v, b.name)).join('')}</div>` : '';
+    const box = $('.well-videos', wrap);
+    if (box) wireVideoCards(box, renderWellVideos);
+  };
+  renderWellVideos();
 
   // rename
   $('#w-rename', el).onclick = async () => {

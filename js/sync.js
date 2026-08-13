@@ -24,6 +24,9 @@ export function isConfigured() {
   return Boolean(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY && window.supabase);
 }
 
+// Direct storage access for the video tab's uploads (null until configured)
+export const getClient = () => client;
+
 export async function initSync() {
   syncState.configured = isConfigured();
   await refreshPending();
