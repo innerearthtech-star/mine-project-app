@@ -83,24 +83,24 @@ async function addContact() {
 async function editContact(id) {
   const c = findRow('contacts', id);
   if (!c) return;
-  const fields = [
-    { name: 'company', label: 'Company', value: c.company, required: true },
-    { name: 'name', label: 'Name', value: c.name, required: true },
-    { name: 'position', label: 'Title / position (optional)', value: c.position || '' },
-    { name: 'phone', label: 'Phone', type: 'tel', value: c.phone, required: true },
-  ];
-  if (S.owner) fields.push({ name: 'del', label: 'Type DELETE to remove this contact', placeholder: '' });
-  const res = await modalForm({ title: 'Edit contact', fields });
+  const res = await modalForm({
+    title: 'Edit contact',
+    fields: [
+      { name: 'company', label: 'Company', value: c.company, required: true },
+      { name: 'name', label: 'Name', value: c.name, required: true },
+      { name: 'position', label: 'Title / position (optional)', value: c.position || '' },
+      { name: 'phone', label: 'Phone', type: 'tel', value: c.phone, required: true },
+    ],
+    deleteText: S.owner ? 'Delete contact' : null,
+  });
   if (!res) return;
-  const delTyped = (res.del || '').trim();
-  if (S.owner && delTyped.toLowerCase() === 'delete') {
-    if (await confirmDlg(`Delete ${c.name}?`, { okText: 'Delete', danger: true })) {
+  if (res._delete) {
+    if (await confirmDlg(`Delete ${c.name} for everyone?`, { okText: 'Delete', danger: true })) {
       await softDelete('contacts', c);
       toast('Contact deleted', 'ok');
     }
     return;
   }
-  if (delTyped) { toast('Nothing changed — type DELETE to remove', 'warn'); return; }
   await save('contacts', {
     ...c, company: res.company.trim(), name: res.name.trim(),
     position: (res.position || '').trim(), phone: res.phone.trim(),

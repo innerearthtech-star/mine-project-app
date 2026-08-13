@@ -91,7 +91,6 @@ function nightsInfo(job) {
   return { count: finished + active, active };
 }
 
-const wantsDelete = v => (v || '').trim().toLowerCase() === 'delete';
 const validDate = v => v && !isNaN(new Date(v));
 
 function renderRunGroups(runs) {
@@ -145,12 +144,17 @@ function wireJob(root, { open, job }) {
       fields: [
         { name: 'start', label: 'Left hotel', type: 'datetime-local', value: toLocalInput(s.start_ts) },
         { name: 'end', label: 'Back at hotel', type: 'datetime-local', value: s.end_ts ? toLocalInput(s.end_ts) : '' },
-        { name: 'del', label: 'Type DELETE to remove this day', placeholder: '' },
       ],
+      deleteText: 'Delete day',
     });
     if (!res) return;
-    if (wantsDelete(res.del)) { await softDelete('shifts', s); toast('Day removed', 'ok'); return; }
-    if (res.del && res.del.trim()) { toast('Nothing changed — type DELETE to remove', 'warn'); return; }
+    if (res._delete) {
+      if (await confirmDlg('Remove this day from your hours?', { okText: 'Delete', danger: true })) {
+        await softDelete('shifts', s);
+        toast('Day removed', 'ok');
+      }
+      return;
+    }
     if (!validDate(res.start) || (res.end && !validDate(res.end))) {
       toast('Enter valid times', 'warn'); return;
     }
@@ -179,12 +183,17 @@ function wireJob(root, { open, job }) {
       fields: [
         { name: 'ts', label: 'Date & time', type: 'datetime-local', value: toLocalInput(r.ts) },
         { name: 'note', label: 'Note', value: r.note || '' },
-        { name: 'del', label: 'Type DELETE to remove this run', placeholder: '' },
       ],
+      deleteText: 'Delete run',
     });
     if (!res) return;
-    if (wantsDelete(res.del)) { await softDelete('runs', r); toast('Run removed', 'ok'); return; }
-    if (res.del && res.del.trim()) { toast('Nothing changed — type DELETE to remove', 'warn'); return; }
+    if (res._delete) {
+      if (await confirmDlg('Remove this run?', { okText: 'Delete', danger: true })) {
+        await softDelete('runs', r);
+        toast('Run removed', 'ok');
+      }
+      return;
+    }
     if (!validDate(res.ts)) { toast('Enter a valid date & time', 'warn'); return; }
     await save('runs', { ...r, ts: new Date(res.ts).toISOString(), note: res.note || '' });
   });

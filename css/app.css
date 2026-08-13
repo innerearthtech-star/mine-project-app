@@ -568,9 +568,10 @@ main { flex: 1; position: relative; min-height: 0; }
 #modal.open { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
 #modal h3 { font-size: 18px; margin-bottom: 14px; }
 .modal-msg { font-size: 15px; color: var(--text); margin-bottom: 16px; }
-.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+.modal-actions .modal-delete { margin-right: auto; padding-left: 10px; padding-right: 10px; }
 
-.field { display: block; margin-bottom: 12px; }
+.field { display: block; margin-bottom: 12px; min-width: 0; overflow: hidden; }
 .field span { display: block; font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 5px; }
 .field input, .field textarea, .field select {
   width: 100%; padding: 12px 13px; font-size: 16px;
@@ -584,7 +585,8 @@ main { flex: 1; position: relative; min-height: 0; }
    centers the text, so they line up with every other field */
 input[type="datetime-local"], input[type="date"] {
   -webkit-appearance: none; appearance: none;
-  width: 100%; min-width: 0; max-width: 100%;
+  width: 100% !important; min-width: 0 !important; max-width: 100% !important;
+  box-sizing: border-box;
   min-height: 47px; text-align: left;
   display: block;
 }

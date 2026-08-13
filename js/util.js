@@ -153,7 +153,8 @@ export function closeModal() {
 }
 
 // Ask for a line (or small form) of text. fields: [{name,label,value,type,placeholder,required}]
-export function modalForm({ title, fields, okText = 'Save', danger = false }) {
+// deleteText: adds a danger "Delete" button — resolves { _delete: true }.
+export function modalForm({ title, fields, okText = 'Save', danger = false, deleteText = null }) {
   return new Promise(resolve => {
     const el = openModal(`
       <h3>${esc(title)}</h3>
@@ -169,11 +170,14 @@ export function modalForm({ title, fields, okText = 'Save', danger = false }) {
                    autocomplete="off" enterkeyhint="done">`}
           </label>`).join('')}
         <div class="modal-actions">
+          ${deleteText ? `<button type="button" class="btn danger-ghost modal-delete" id="modal-delete">🗑 ${esc(deleteText)}</button>` : ''}
           <button type="button" class="btn ghost" id="modal-cancel">Cancel</button>
           <button type="submit" class="btn ${danger ? 'danger' : 'primary'}">${esc(okText)}</button>
         </div>
       </form>`);
     const done = val => { closeModal(); resolve(val); };
+    const delBtn = $('#modal-delete', el);
+    if (delBtn) delBtn.onclick = () => done({ _delete: true });
     $('#modal-cancel', el).onclick = () => done(null);
     $('#modal-backdrop').onclick = () => done(null);
     $('#modal-form', el).onsubmit = e => {

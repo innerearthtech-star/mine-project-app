@@ -111,6 +111,7 @@ function renderWellResults() {
     selectedWell = { id: b.id, name: b.name };
     input.value = b.name;
     box.innerHTML = '';
+    input.blur(); // picking a well drops the keyboard too
   });
 }
 
