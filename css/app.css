@@ -415,6 +415,17 @@ main { flex: 1; position: relative; min-height: 0; }
 .msg-btn:active { background: #2f81f744; }
 
 /* ── Videos ──────────────────────────────────────────────────────── */
+/* folder dropzone (desktop uploads) */
+.dropzone {
+  border: 1.5px dashed var(--line); border-radius: var(--radius);
+  padding: 14px; text-align: center; margin-bottom: 14px;
+  color: var(--muted); transition: border-color .15s, background .15s;
+}
+.dropzone.drag { border-color: var(--accent); background: #f5a52411; color: var(--text); }
+.drop-msg { font-size: 14px; font-weight: 700; }
+.drop-sub { font-size: 12px; margin: 2px 0 10px; }
+.drop-summary { font-size: 13px; color: var(--text); margin-bottom: 10px; word-break: break-word; }
+
 .picker-results { margin-top: 4px; }
 .picker-row {
   display: block; width: 100%; text-align: left;

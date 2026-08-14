@@ -57,6 +57,13 @@ export function renderVideosTab() {
     ${canUpload ? `
     <section class="card" id="upload-card">
       <h4>Upload inspection</h4>
+        <div id="v-drop" class="dropzone">
+          <div class="drop-msg">⬇ Drop the inspection folder here</div>
+          <div class="drop-sub">video + screenshots sort themselves out</div>
+          <div class="drop-summary" id="v-drop-summary" hidden></div>
+          <button type="button" class="btn small ghost" id="v-pick-folder">📁 Choose folder</button>
+          <input type="file" id="v-folder-input" webkitdirectory multiple hidden>
+        </div>
         <label class="field"><span>Borehole (add it on the map first)</span>
           <input id="v-well" type="text" placeholder="Tap to pick a well…" autocomplete="off">
           <div id="v-well-results" class="picker-results"></div>
@@ -127,7 +134,63 @@ function renderWellResults() {
   });
 }
 
+// Pull every file out of a dropped folder (recursive) or plain file drop
+async function filesFromDrop(dt) {
+  const out = [];
+  const entries = [...dt.items]
+    .map(i => i.webkitGetAsEntry && i.webkitGetAsEntry())
+    .filter(Boolean);
+  if (!entries.length) return [...dt.files];
+  const walk = async entry => {
+    if (entry.isFile) {
+      const f = await new Promise(res => entry.file(res, () => res(null)));
+      if (f) out.push(f);
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      for (;;) { // readEntries hands out batches of ≤100 — drain them all
+        const batch = await new Promise(res => reader.readEntries(res, () => res([])));
+        if (!batch.length) break;
+        for (const e of batch) await walk(e);
+      }
+    }
+  };
+  for (const en of entries) await walk(en);
+  return out;
+}
+
+// Folder contents decide themselves: biggest video = the inspection,
+// every image = a screenshot.
+function classifyFiles(files) {
+  const isVid = f => /\.(mp4|m4v|mov|webm|avi|mkv)$/i.test(f.name) || (f.type || '').startsWith('video/');
+  const isImg = f => /\.(jpe?g|png|gif|bmp|webp|heic|heif)$/i.test(f.name) || (f.type || '').startsWith('image/');
+  const vids = files.filter(isVid).sort((a, b) => b.size - a.size);
+  const imgs = files.filter(isImg).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  if (!vids.length && !imgs.length) { toast('No video or images found in that folder', 'warn'); return; }
+  pickedFile = vids[0] || null;
+  pickedShots = imgs;
+  if (vids.length > 1) toast(`Found ${vids.length} videos — using the biggest: ${vids[0].name}`, 'warn');
+  const sum = $('#v-drop-summary');
+  if (sum) {
+    sum.hidden = false;
+    sum.innerHTML = `${pickedFile ? `🎬 ${esc(pickedFile.name)} <span class="muted">(${fmtBytes(pickedFile.size)})</span>` : 'no video'}`
+      + `${imgs.length ? ` · 🖼 ${imgs.length} screenshot${imgs.length === 1 ? '' : 's'}` : ''}`;
+  }
+  // folder wins — clear the manual pickers so there's one source of truth
+  const f = $('#v-file'); if (f) f.value = '';
+  const sh = $('#v-shots'); if (sh) sh.value = '';
+}
+
 function wireUpload(root) {
+  const drop = $('#v-drop', root);
+  const folderInput = $('#v-folder-input', root);
+  $('#v-pick-folder', root).onclick = () => folderInput.click();
+  folderInput.onchange = () => { classifyFiles([...folderInput.files]); folderInput.value = ''; };
+  ['dragover', 'dragenter'].forEach(ev =>
+    drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach(ev =>
+    drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
+  drop.addEventListener('drop', async e => classifyFiles(await filesFromDrop(e.dataTransfer)));
+
   const wellInput = $('#v-well', root);
   wellInput.oninput = () => { selectedWell = null; renderWellResults(); };
   wellInput.onfocus = renderWellResults;
@@ -184,6 +247,7 @@ async function startUpload({ well, ts, note, file, shots }) {
     const t = $('#v-ts'); if (t) t.value = toLocalInput();
     const n = $('#v-note'); if (n) n.value = '';
     const w = $('#v-well'); if (w) w.value = '';
+    const ds = $('#v-drop-summary'); if (ds) { ds.hidden = true; ds.innerHTML = ''; }
     pickedFile = null;
     pickedShots = [];
     selectedWell = null; // don't carry the well/note onto the next inspection
@@ -251,8 +315,14 @@ async function startUpload({ well, ts, note, file, shots }) {
       currentUpload = null;
       uploadBtn.disabled = false;
       actions.style.display = 'none'; // pause/cancel are dead once it failed
-      status.textContent = `Upload failed: ${err.message || err}. Your progress is saved — hit Upload again to resume.`;
-      toast('Upload failed — try again to resume', 'warn');
+      const raw = String(err && err.message || err);
+      if (/413|maximum size exceeded/i.test(raw)) {
+        status.textContent = 'This file is bigger than your Supabase project allows. In the Supabase dashboard: Storage → Settings → raise "Upload file size limit" (50 GB), then hit Upload again.';
+        toast('File exceeds the project upload limit — see note below', 'warn');
+      } else {
+        status.textContent = `Upload failed: ${raw}. Your progress is saved — hit Upload again to resume.`;
+        toast('Upload failed — try again to resume', 'warn');
+      }
     },
     onProgress(sent, total) {
       const pct = total ? (sent / total) * 100 : 0;

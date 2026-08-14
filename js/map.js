@@ -173,6 +173,26 @@ function groupWells(list) {
   return groups;
 }
 
+const POPUP_OPTS = { className: 'pin-popup', offset: [0, -34], autoPanPadding: [24, 90] };
+// past this zoom there's no more room to expand — fall back to the list
+const PAD_MAX_ZOOM = 20.5;
+
+// Cluster tap = zoom in to expand (IBE-style). Only when we're already
+// maxed out and the wells still can't separate does the pick-list open.
+function onPadClick(m) {
+  const bounds = L.latLngBounds(m._group.map(w => [w.lat, w.lng]));
+  if (map.getZoom() < PAD_MAX_ZOOM) {
+    map.flyToBounds(bounds.pad(0.4), { maxZoom: 21, duration: 0.6 });
+  } else {
+    openPadList(m);
+  }
+}
+function openPadList(m) {
+  if (!m.getPopup()) m.bindPopup('', POPUP_OPTS);
+  m.setPopupContent(padPopupHTML(m._group));
+  m.openPopup();
+}
+
 function renderMarkers() {
   if (!map) return;
   const groups = groupWells(activeBoreholes());
@@ -189,15 +209,23 @@ function renderMarkers() {
       if (existing._sig !== sig) {
         existing.setLatLng([lat, lng]);
         existing.setIcon(single ? pinIcon(g[0]) : padIcon(g));
-        existing.setPopupContent(single ? popupHTML(g[0]) : padPopupHTML(g));
+        if (single) {
+          existing.setPopupContent(popupHTML(g[0]));
+        } else {
+          existing._group = g;
+          if (existing.getPopup()) existing.setPopupContent(padPopupHTML(g));
+        }
         if (existing.isPopupOpen()) wirePopupBtn(existing.getPopup());
         existing._sig = sig;
       }
     } else {
-      const m = L.marker([lat, lng], { icon: single ? pinIcon(g[0]) : padIcon(g) })
-        .bindPopup(single ? popupHTML(g[0]) : padPopupHTML(g),
-          { className: 'pin-popup', offset: [0, -34], autoPanPadding: [24, 90] })
-        .addTo(map);
+      const m = L.marker([lat, lng], { icon: single ? pinIcon(g[0]) : padIcon(g) }).addTo(map);
+      if (single) {
+        m.bindPopup(popupHTML(g[0]), POPUP_OPTS);
+      } else {
+        m._group = g;
+        m.on('click', () => onPadClick(m));
+      }
       m._sig = sig;
       markers.set(key, m);
     }
@@ -327,7 +355,9 @@ function wireControls() {
             // the well may be merged into a pad pin at this zoom
             const m = markers.get(b.id) ||
               [...markers.entries()].find(([k]) => k.startsWith('pad:') && k.includes(b.id))?.[1];
-            if (m) m.openPopup();
+            if (!m) return;
+            if (m._group) openPadList(m); // show the list so they can pick it
+            else m.openPopup();
           }, 850);
         }
       };

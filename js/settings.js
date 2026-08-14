@@ -59,16 +59,6 @@ export function renderSettings() {
 
   root.innerHTML = `
     <section class="card">
-      <h4>Project</h4>
-      <div class="setting-row">
-        <div><div class="setting-label">Mine / project name</div>
-        <div class="setting-value">${esc(projectName())} Project</div></div>
-        ${S.owner ? `<button class="btn small" id="s-project">Edit</button>` : ''}
-      </div>
-      <div class="setting-hint">👥 Everyone sees this name.${S.owner ? ' Only you can change it.' : ' Only the owner can change it.'}</div>
-    </section>
-
-    <section class="card">
       <h4>You</h4>
       <div class="setting-row">
         <div>
@@ -97,12 +87,12 @@ export function renderSettings() {
     </section>
 
     <section class="card">
-      <h4>Owner tools</h4>
+      <h4>Admin tools</h4>
       ${S.owner
         ? `<div class="setting-hint">🔓 Unlocked on this phone — your private <b>Job tab</b> (runs, hours, night stays) and <b>video uploading</b> are on. Just for you.</div>
            <button class="btn small ghost" id="s-lock">Lock on this phone</button>`
-        : `<div class="setting-hint">🔒 The <b>Job tab</b> (billing, runs, hours) and <b>uploading videos</b> are owner-only. Enter your code to turn them on for this phone.</div>
-           <button class="btn small primary" id="s-unlock">Unlock owner tools</button>`}
+        : `<div class="setting-hint">🔒 The <b>Job tab</b> (billing, runs, hours) and <b>uploading videos</b> are admin-only. Enter your code to turn them on for this phone.</div>
+           <button class="btn small primary" id="s-unlock">Unlock admin tools</button>`}
     </section>
 
     <section class="card">
@@ -127,22 +117,6 @@ export function renderSettings() {
       <span class="muted">Built by Inner Earth Tech 😏</span></div>
     </section>
   `;
-
-  const projectBtn = $('#s-project');
-  if (projectBtn) projectBtn.onclick = async () => {
-    const res = await modalForm({
-      title: 'Mine / project name',
-      fields: [{ name: 'v', label: 'Name (e.g. Black Thunder)', value: getRaw(), required: true }],
-    });
-    if (res && res.v.trim()) {
-      await setSetting('project_name', res.v.trim());
-      toast('Project name updated for everyone', 'ok');
-    }
-  };
-  function getRaw() {
-    const v = projectName();
-    return v === CONFIG.DEFAULT_PROJECT_NAME ? '' : v;
-  }
 
   $('#s-name').onclick = async () => {
     const res = await modalForm({
@@ -195,7 +169,7 @@ export function renderSettings() {
   const unlockBtn = $('#s-unlock');
   if (unlockBtn) unlockBtn.onclick = async () => {
     const res = await modalForm({
-      title: 'Unlock Job tab',
+      title: 'Unlock admin tools',
       fields: [{ name: 'code', label: 'Owner code', type: 'password', required: true }],
       okText: 'Unlock',
     });
