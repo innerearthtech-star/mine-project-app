@@ -182,7 +182,7 @@ export async function openWell(id) {
       await save('boreholes', { ...findRow('boreholes', id), lat: latlng.lat, lng: latlng.lng });
       toast('Pin moved', 'ok');
       openWell(id);
-    }, `Tap the new location for ${b.name}`);
+    }, `Line up the pin for ${b.name}`, [b.lat, b.lng]);
   };
 
   // delete (owner only)

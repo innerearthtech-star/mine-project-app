@@ -9,8 +9,7 @@ let map = null;
 const markers = new Map();   // borehole id → L.marker
 export let myPos = null;     // {lat, lng, accuracy}
 let myMarker = null, myCircle = null;
-let placing = null;          // callback armed for "tap map to place"
-let previewMarker = null;    // draggable pin awaiting "Place here"
+let placing = null;          // callback armed for pin placement
 let watchId = null;
 
 const DEFAULT_VIEW = { center: [39.5, -98.35], zoom: 4 }; // continental US
@@ -49,11 +48,12 @@ export function initMap() {
     DB.kvSet('mapView', { center: [c.lat, c.lng], zoom: map.getZoom() });
   });
 
-  // While placing: a tap drops (or moves) a draggable preview pin; the
-  // actual create/move only happens on "Place here".
+  // While placing: the pin floats center-screen and the map moves under
+  // it (finger never covers the pin). A tap jumps the map there.
   map.on('click', e => {
-    if (placing) setPreview(e.latlng);
+    if (placing) map.panTo(e.latlng);
   });
+  map.on('move', updatePlacingCoords);
 
   // wire the "Open well" button inside a pin's popup
   map.on('popupopen', e => wirePopupBtn(e.popup));
@@ -262,30 +262,33 @@ function wireControls() {
   };
 
   $('#btn-add-pin').onclick = () => {
-    stopPlacing(); // cancel any in-progress "tap to place" before re-entering
+    stopPlacing(); // cancel any in-progress placement before re-entering
     sheet(`
       <h3>Add borehole</h3>
-      <button class="btn primary big" id="add-here">${icon('crosshair')} Pin at my location</button>
-      <button class="btn big" id="add-tap">${icon('map')} Tap the map to place</button>
+      <button class="btn primary big" id="add-here">${icon('crosshair')} Start at my location</button>
+      <button class="btn big" id="add-tap">${icon('map')} Place on the map</button>
     `);
     $('#add-here').onclick = () => {
-      if (!myPos) { toast('No GPS fix yet — try "Tap the map" instead', 'warn'); return; }
+      if (!myPos) { toast('No GPS fix yet — use "Place on the map" instead', 'warn'); return; }
       closeSheet();
-      // preview at your GPS spot — drag to adjust, then confirm
-      armPlacing(latlng => createAt(latlng), 'Drag the pin to adjust');
-      map.flyTo([myPos.lat, myPos.lng], Math.max(map.getZoom(), 18), { duration: 0.5 });
-      setPreview(L.latLng(myPos.lat, myPos.lng));
+      armPlacing(latlng => createAt(latlng), 'Drag the map under the pin', [myPos.lat, myPos.lng]);
     };
     $('#add-tap').onclick = () => {
       closeSheet();
-      armPlacing(latlng => createAt(latlng), 'Tap the map where the borehole is');
+      armPlacing(latlng => createAt(latlng), 'Drag the map under the pin');
     };
   };
 
+  $('#placing-gps').onclick = () => {
+    if (!placing) return;
+    if (myPos) map.setView([myPos.lat, myPos.lng], Math.max(map.getZoom(), 18));
+    else { toast('Waiting for GPS… make sure location is allowed', 'warn'); startGPS(); }
+  };
+
   $('#placing-confirm').onclick = () => {
-    if (!previewMarker || !placing) return;
+    if (!placing) return;
     const cb = placing;
-    const ll = previewMarker.getLatLng();
+    const ll = map.getCenter();
     stopPlacing();
     cb(ll);
   };
@@ -347,45 +350,26 @@ function wireControls() {
   $('#placing-cancel').onclick = stopPlacing;
 }
 
-export function armPlacing(cb, msg) {
-  stopPlacing(); // reset any earlier attempt (and its preview pin)
+// LeaseSight-style placement: pin fixed center-screen, map drags under it.
+// startLatLng (optional) centers the map there first.
+export function armPlacing(cb, msg, startLatLng) {
+  stopPlacing(); // reset any earlier attempt
   placing = cb;
-  $('#placing-banner span').textContent = msg;
-  $('#placing-confirm').style.display = 'none';
+  $('#placing-msg').textContent = msg;
   $('#view-map').classList.add('placing');
-  $('#placing-banner').classList.add('show');
+  if (startLatLng) map.setView(startLatLng, Math.max(map.getZoom(), 18));
+  updatePlacingCoords();
 }
 
-// Drop the draggable preview pin (or move it to a new tap point)
-function setPreview(latlng) {
-  if (!previewMarker) {
-    previewMarker = L.marker(latlng, {
-      draggable: true, zIndexOffset: 2000,
-      icon: L.divIcon({
-        className: 'pin-wrap',
-        iconSize: [30, 40], iconAnchor: [15, 38],
-        html: `
-          <div class="pin pin-preview">
-            <svg viewBox="0 0 30 40" width="30" height="40">
-              <path d="M15 1C7.8 1 2 6.9 2 14.2 2 24.5 15 38 15 38S28 24.5 28 14.2C28 6.9 22.2 1 15 1z"
-                    fill="var(--pin)" stroke="#00000055" stroke-width="1.5"/>
-              <circle cx="15" cy="14" r="5.5" fill="#0b0f14"/>
-            </svg>
-          </div>`,
-      }),
-    }).addTo(map);
-    $('#placing-banner span').textContent = 'Drag the pin to adjust';
-    $('#placing-confirm').style.display = '';
-  } else {
-    previewMarker.setLatLng(latlng);
-  }
+function updatePlacingCoords() {
+  if (!placing || !map) return;
+  const c = map.getCenter();
+  $('#placing-coords').textContent = `${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}`;
 }
 
 function stopPlacing() {
   placing = null;
-  if (previewMarker) { previewMarker.remove(); previewMarker = null; }
   $('#view-map').classList.remove('placing');
-  $('#placing-banner').classList.remove('show');
 }
 
 async function createAt(latlng) {

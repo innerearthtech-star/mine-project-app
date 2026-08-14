@@ -103,9 +103,26 @@
           <div id="search-results"></div>
         </div>
 
-        <div id="placing-banner"><span>Tap the map</span>
-          <button class="btn small" id="placing-confirm" style="display:none">✓ Place here</button>
-          <button class="btn small ghost" id="placing-cancel">Cancel</button></div>
+        <!-- pin placement: the pin floats center-screen, drag the map under it -->
+        <div id="center-pin">
+          <div class="cp-pin">
+            <svg viewBox="0 0 30 40" width="34" height="46">
+              <path d="M15 1C7.8 1 2 6.9 2 14.2 2 24.5 15 38 15 38S28 24.5 28 14.2C28 6.9 22.2 1 15 1z"
+                    fill="#f5a524" stroke="#00000066" stroke-width="1.5"/>
+              <circle cx="15" cy="14" r="5.5" fill="#0b0f14"/>
+            </svg>
+          </div>
+          <div class="cp-dot"></div>
+        </div>
+        <div id="placing-panel">
+          <div class="placing-title" id="placing-msg">Drag the map under the pin</div>
+          <div class="placing-coords mono" id="placing-coords"></div>
+          <div class="placing-actions">
+            <button class="btn small" id="placing-gps">⌖ My GPS</button>
+            <button class="btn small ghost" id="placing-cancel">Cancel</button>
+            <button class="btn small primary" id="placing-confirm">✓ Place pin</button>
+          </div>
+        </div>
 
         <div class="map-fabs">
           <button class="fab" id="btn-locate" title="My location">
