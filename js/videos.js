@@ -58,10 +58,15 @@ export function renderVideosTab() {
     <section class="card" id="upload-card">
       <h4>Upload inspection</h4>
         <div id="v-drop" class="dropzone">
-          <div class="drop-msg">⬇ Drop the inspection folder here</div>
-          <div class="drop-sub">video + screenshots sort themselves out</div>
+          <div class="drop-msg">⬇ Drop videos, screenshots, or a whole folder</div>
+          <div class="drop-sub">it sorts out what's what</div>
           <div class="drop-summary" id="v-drop-summary" hidden></div>
-          <button type="button" class="btn small ghost" id="v-pick-folder">📁 Choose folder</button>
+          <div class="drop-actions">
+            <button type="button" class="btn small ghost" id="v-pick-files">🗂 Choose files</button>
+            <button type="button" class="btn small ghost" id="v-pick-folder">📁 Choose folder</button>
+            <button type="button" class="btn small danger-ghost" id="v-clear" hidden>✕ Clear</button>
+          </div>
+          <input type="file" id="v-files-input" accept="video/*,image/*,.mp4,.mov,.m4v,.webm,.avi,.mkv" multiple hidden>
           <input type="file" id="v-folder-input" webkitdirectory multiple hidden>
         </div>
         <label class="field"><span>Borehole (add it on the map first)</span>
@@ -72,10 +77,6 @@ export function renderVideosTab() {
           <input id="v-ts" type="datetime-local" value="${toLocalInput()}"></label>
         <label class="field"><span>Note (optional)</span>
           <input id="v-note" type="text" placeholder="e.g. camera run to 400ft"></label>
-        <label class="field"><span>Video file (optional if you're only adding screenshots)</span>
-          <input id="v-file" type="file" accept="video/*,.mp4,.mov,.avi,.mkv"></label>
-        <label class="field"><span>Screenshots (optional — select all the images at once)</span>
-          <input id="v-shots" type="file" accept="image/*" multiple></label>
         <div id="v-progress" class="upload-progress" hidden>
           <div class="upload-bar"><div class="upload-fill" id="v-fill"></div></div>
           <div class="upload-status" id="v-status"></div>
@@ -158,14 +159,18 @@ async function filesFromDrop(dt) {
   return out;
 }
 
-// Folder contents decide themselves: biggest video = the inspection,
+// Dropped contents decide themselves: biggest video = the inspection,
 // every image = a screenshot.
 function classifyFiles(files) {
   const isVid = f => /\.(mp4|m4v|mov|webm|avi|mkv)$/i.test(f.name) || (f.type || '').startsWith('video/');
   const isImg = f => /\.(jpe?g|png|gif|bmp|webp|heic|heif)$/i.test(f.name) || (f.type || '').startsWith('image/');
   const vids = files.filter(isVid).sort((a, b) => b.size - a.size);
   const imgs = files.filter(isImg).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  if (!vids.length && !imgs.length) { toast('No video or images found in that folder', 'warn'); return; }
+  if (!vids.length && !imgs.length) {
+    toast('No video or images found in that drop', 'warn');
+    clearSelection();
+    return;
+  }
   pickedFile = vids[0] || null;
   pickedShots = imgs;
   if (vids.length > 1) toast(`Found ${vids.length} videos — using the biggest: ${vids[0].name}`, 'warn');
@@ -175,21 +180,38 @@ function classifyFiles(files) {
     sum.innerHTML = `${pickedFile ? `🎬 ${esc(pickedFile.name)} <span class="muted">(${fmtBytes(pickedFile.size)})</span>` : 'no video'}`
       + `${imgs.length ? ` · 🖼 ${imgs.length} screenshot${imgs.length === 1 ? '' : 's'}` : ''}`;
   }
-  // folder wins — clear the manual pickers so there's one source of truth
-  const f = $('#v-file'); if (f) f.value = '';
-  const sh = $('#v-shots'); if (sh) sh.value = '';
+  const clr = $('#v-clear'); if (clr) clr.hidden = false;
+}
+
+// Wipe whatever was dropped/picked — back to a clean slate
+function clearSelection() {
+  pickedFile = null;
+  pickedShots = [];
+  const sum = $('#v-drop-summary'); if (sum) { sum.hidden = true; sum.innerHTML = ''; }
+  const clr = $('#v-clear'); if (clr) clr.hidden = true;
 }
 
 function wireUpload(root) {
   const drop = $('#v-drop', root);
   const folderInput = $('#v-folder-input', root);
+  const filesInput = $('#v-files-input', root);
   $('#v-pick-folder', root).onclick = () => folderInput.click();
+  $('#v-pick-files', root).onclick = () => filesInput.click();
+  $('#v-clear', root).onclick = () => { clearSelection(); toast('Cleared', 'ok'); };
   folderInput.onchange = () => { classifyFiles([...folderInput.files]); folderInput.value = ''; };
+  filesInput.onchange = () => { classifyFiles([...filesInput.files]); filesInput.value = ''; };
   ['dragover', 'dragenter'].forEach(ev =>
     drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
   ['dragleave', 'drop'].forEach(ev =>
     drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
-  drop.addEventListener('drop', async e => classifyFiles(await filesFromDrop(e.dataTransfer)));
+  drop.addEventListener('drop', async e => {
+    // a big folder can take a moment to read — show it, and let Clear
+    // bail out at any point
+    const sum = $('#v-drop-summary');
+    if (sum) { sum.hidden = false; sum.textContent = 'Reading files…'; }
+    const clr = $('#v-clear'); if (clr) clr.hidden = false;
+    classifyFiles(await filesFromDrop(e.dataTransfer));
+  });
 
   const wellInput = $('#v-well', root);
   wellInput.oninput = () => { selectedWell = null; renderWellResults(); };
@@ -203,15 +225,12 @@ function wireUpload(root) {
     }
   }, 200);
 
-  $('#v-file', root).onchange = e => { pickedFile = e.target.files[0] || null; };
-  $('#v-shots', root).onchange = e => { pickedShots = [...e.target.files]; };
-
   $('#v-upload', root).onclick = () => {
     if (uploading || currentUpload) { toast('An upload is already running', 'warn'); return; }
     if (!selectedWell) { toast('Pick the borehole first', 'warn'); return; }
     const tsVal = $('#v-ts', root).value;
     if (!tsVal || isNaN(new Date(tsVal))) { toast('Enter a valid date & time', 'warn'); return; }
-    if (!pickedFile && !pickedShots.length) { toast('Choose a video and/or screenshots', 'warn'); return; }
+    if (!pickedFile && !pickedShots.length) { toast('Drop a video and/or screenshots first', 'warn'); return; }
     startUpload({
       well: selectedWell,
       ts: new Date(tsVal).toISOString(),
@@ -242,14 +261,10 @@ async function startUpload({ well, ts, note, file, shots }) {
     await newVideo(well.id, ts, note, videoPath, videoSize, shotPaths);
     kick();
     finishUI();
-    const f = $('#v-file'); if (f) f.value = '';
-    const sh = $('#v-shots'); if (sh) sh.value = '';
+    clearSelection();
     const t = $('#v-ts'); if (t) t.value = toLocalInput();
     const n = $('#v-note'); if (n) n.value = '';
     const w = $('#v-well'); if (w) w.value = '';
-    const ds = $('#v-drop-summary'); if (ds) { ds.hidden = true; ds.innerHTML = ''; }
-    pickedFile = null;
-    pickedShots = [];
     selectedWell = null; // don't carry the well/note onto the next inspection
     toast(`Inspection saved to ${well.name}`, 'ok');
   };
@@ -383,12 +398,13 @@ async function startUpload({ well, ts, note, file, shots }) {
 }
 
 // ── Video list (tab) ───────────────────────────────────────────────
-export function renderVideoList() {
+export function renderVideoList(force = false) {
   const wrap = $('#video-list');
   if (!wrap) return;
   // never rebuild the list out from under someone mid-watch — the list
-  // catches up the moment they close the player/screenshots
-  if ($('.video-player:not([hidden]), .shot-grid:not([hidden])', wrap)) return;
+  // catches up the moment they close the player/screenshots. A delete
+  // forces through so the card disappears immediately.
+  if (!force && $('.video-player:not([hidden]), .shot-grid:not([hidden])', wrap)) return;
   const wellName = id => { const b = findRow('boreholes', id); return b ? b.name : 'Unknown well'; };
   const vids = activeVideos().filter(v =>
     !q || wellName(v.borehole_id).toLowerCase().includes(q) || (v.note || '').toLowerCase().includes(q));
@@ -491,6 +507,10 @@ export function wireVideoCards(scope, onDelete) {
         }
       } catch { /* offline — the metadata delete still hides it everywhere */ }
       toast('Inspection deleted', 'ok');
+      // stop any playback in this list and force the card gone right now
+      // (the normal re-render politely waits while a player is open)
+      $$('.video-player, .shot-grid', scope).forEach(p => { p.hidden = true; p.innerHTML = ''; });
+      renderVideoList(true);
       if (onDelete) onDelete();
     }
   });

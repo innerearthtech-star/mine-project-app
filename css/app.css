@@ -425,6 +425,7 @@ main { flex: 1; position: relative; min-height: 0; }
 .drop-msg { font-size: 14px; font-weight: 700; }
 .drop-sub { font-size: 12px; margin: 2px 0 10px; }
 .drop-summary { font-size: 13px; color: var(--text); margin-bottom: 10px; word-break: break-word; }
+.drop-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 
 .picker-results { margin-top: 4px; }
 .picker-row {
