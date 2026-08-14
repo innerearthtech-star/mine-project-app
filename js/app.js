@@ -16,6 +16,17 @@ import { initVideos, renderVideoList, refreshUploadDefaults } from './videos.js'
 
 let currentTab = 'map';
 
+// A crash inside a button handler must never look like "nothing happened" —
+// surface it so the user knows to try again (and we can see it in feedback).
+window.addEventListener('unhandledrejection', e => {
+  console.error('unhandled', e.reason);
+  try { toast('Something went wrong — try that again', 'warn'); } catch { /* very early */ }
+});
+window.addEventListener('error', e => {
+  console.error('error', e.error || e.message);
+  try { toast('Something went wrong — try that again', 'warn'); } catch { /* very early */ }
+});
+
 async function boot() {
   setupServiceWorker();
   try {
