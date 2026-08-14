@@ -1,7 +1,7 @@
 // ── Borehole detail sheet: notes, photos, directions, edit ─────────
 
 import {
-  $, $$, esc, sheet, closeSheet, modalForm, confirmDlg, toast, viewPhoto,
+  $, $$, esc, sheet, closeSheet, modalForm, confirmDlg, toast, viewPhoto, viewPhotos,
   fmtDateTime, fmtFt, compressImage, uuid, isIOS, toLocalInput, nowISO,
 } from './util.js';
 import {
@@ -283,7 +283,12 @@ async function renderNotes(el, b) {
       </div>`;
   }));
   wrap.innerHTML = blocks.join('');
-  $$('.note-photo', wrap).forEach(im => im.onclick = () => viewPhoto(im.src));
+  // each note's photos browse as one little gallery (swipe / arrows)
+  $$('.note-photos', wrap).forEach(box => {
+    const imgs = [...box.querySelectorAll('.note-photo')];
+    const urls = imgs.map(im => im.src);
+    imgs.forEach((im, idx) => im.onclick = () => viewPhotos(urls, idx));
+  });
   $$('[data-del]', wrap).forEach(btn => btn.onclick = async () => {
     if (await confirmDlg('Delete this note?', { okText: 'Delete', danger: true })) {
       await softDelete('notes', findRow('notes', btn.dataset.del));

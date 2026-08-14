@@ -206,14 +206,63 @@ export function confirmDlg(msg, { okText = 'OK', danger = false, title = 'Are yo
   });
 }
 
-// Fullscreen photo viewer
-export function viewPhoto(src) {
-  const el = openModal(`<img class="photo-full" src="${esc(src)}" alt="photo" crossorigin="anonymous">`);
+// Fullscreen photo viewer / gallery: swipe on mobile, arrows + keyboard
+// on desktop, X (or backdrop / Esc) to close.
+export function viewPhotos(urls, start = 0, labels = null) {
+  urls = (urls || []).filter(Boolean);
+  if (!urls.length) return;
+  let i = Math.max(0, Math.min(start, urls.length - 1));
+  const many = urls.length > 1;
+  const el = openModal(`
+    <div class="pv-wrap">
+      <img class="photo-full" id="pv-img" src="${esc(urls[i])}" alt="photo" crossorigin="anonymous">
+      <button class="pv-x" id="pv-x" title="Close">✕</button>
+      ${labels ? `<div class="pv-label" id="pv-label"></div>` : ''}
+      ${many ? `
+        <button class="pv-nav pv-prev" id="pv-prev" title="Previous">‹</button>
+        <button class="pv-nav pv-next" id="pv-next" title="Next">›</button>
+        <div class="pv-count" id="pv-count">${i + 1} / ${urls.length}</div>` : ''}
+    </div>`);
   el.classList.add('photo-modal');
-  const close = () => { el.classList.remove('photo-modal'); closeModal(); };
-  el.onclick = close;
+  const img = $('#pv-img', el);
+  const show = n => {
+    i = (n + urls.length) % urls.length;
+    img.src = urls[i];
+    const c = $('#pv-count', el);
+    if (c) c.textContent = `${i + 1} / ${urls.length}`;
+    const lb = $('#pv-label', el);
+    if (lb) { const t = labels && labels[i] || ''; lb.textContent = t; lb.hidden = !t; }
+  };
+  show(i);
+  const close = () => {
+    el.classList.remove('photo-modal');
+    document.removeEventListener('keydown', onKey);
+    closeModal();
+  };
+  const onKey = e => {
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowRight' && many) show(i + 1);
+    else if (e.key === 'ArrowLeft' && many) show(i - 1);
+  };
+  document.addEventListener('keydown', onKey);
+  $('#pv-x', el).onclick = close;
   $('#modal-backdrop').onclick = close;
+  const prev = $('#pv-prev', el);
+  const next = $('#pv-next', el);
+  if (prev) prev.onclick = e => { e.stopPropagation(); show(i - 1); };
+  if (next) next.onclick = e => { e.stopPropagation(); show(i + 1); };
+  img.onclick = () => (many ? show(i + 1) : close()); // click photo → next
+  let touchX = null;
+  el.ontouchstart = e => { touchX = e.touches[0].clientX; };
+  el.ontouchend = e => {
+    if (touchX == null || !many) { touchX = null; return; }
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (dx > 40) show(i - 1);
+    else if (dx < -40) show(i + 1);
+    touchX = null;
+  };
 }
+export const viewPhoto = src => viewPhotos([src], 0);
 
 // ── Image compression (camera photos → ~1600px JPEG) ───────────────
 export function compressImage(file, maxDim = 1600, quality = 0.8) {

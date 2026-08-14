@@ -4,7 +4,7 @@
 // metadata row goes through the normal offline sync.
 
 import {
-  $, $$, esc, on, toast, confirmDlg, uuid, debounce, viewPhoto, compressImage,
+  $, $$, esc, on, toast, confirmDlg, uuid, debounce, viewPhotos, compressImage,
   fmtDate, fmtTime, fmtDateTime, toLocalInput,
 } from './util.js';
 import { CONFIG } from './config.js';
@@ -283,6 +283,7 @@ async function startUpload({ well, ts, note, file, shots }) {
     fill.style.width = `${((i / Math.max(1, shots.length)) * 100).toFixed(0)}%`;
     let blob = shots[i];
     try { blob = await compressImage(shots[i], 1920, 0.85); } catch { /* upload as-is */ }
+    const shotName = shots[i].name;
     const p = `screens/${groupId}/${uuid()}.jpg`;
     const { error } = await getClient().storage.from('photos')
       .upload(p, blob, { contentType: 'image/jpeg', upsert: true });
@@ -291,7 +292,8 @@ async function startUpload({ well, ts, note, file, shots }) {
       toast(`Screenshot upload failed: ${error.message}`, 'warn');
       return;
     }
-    shotPaths.push(p);
+    // keep the original filename — it usually says what the shot shows
+    shotPaths.push({ path: p, name: shotName });
   }
   fill.style.width = '0%';
 
@@ -433,7 +435,7 @@ export function videoCard(v, wellNameStr) {
           : `<a class="btn small primary" href="${esc(videoURL(v.path))}?download" target="_blank"
                rel="noopener" title="This format plays after downloading">⬇ Download video</a>`) : ''}
         ${shots.length ? `<button class="btn small" data-shots="${v.id}">🖼 Screenshots (${shots.length})</button>` : ''}
-        ${S.owner ? `<button class="icon-btn tiny" data-vdel="${v.id}" title="Delete">✕</button>` : ''}
+        ${S.owner ? `<button class="icon-btn tiny danger-ghost" data-vdel="${v.id}" title="Delete">${trashIcon}</button>` : ''}
       </div>
       <div class="video-player" data-player="${v.id}" hidden></div>
       <div class="shot-grid" data-shotgrid="${v.id}" hidden></div>
@@ -442,6 +444,10 @@ export function videoCard(v, wellNameStr) {
 
 const isPlayable = p => /\.(mp4|m4v|mov|webm)$/i.test(p || '');
 const videoURL = p => `${CONFIG.SUPABASE_URL}/storage/v1/object/public/videos/${p}`;
+// screenshots are stored as {path, name} (older rows: plain path strings)
+const shotPath = s => (typeof s === 'string' ? s : s.path);
+const shotName = s => (typeof s === 'string' ? '' : (s.name || ''));
+const trashIcon = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>`;
 
 export function wireVideoCards(scope, onDelete) {
   const collapse = () => {
@@ -482,12 +488,16 @@ export function wireVideoCards(scope, onDelete) {
     const wasOpen = !holder.hidden;
     collapse();
     if (wasOpen) { catchUp(holder); return; }
-    holder.innerHTML = shots.map(p => {
-      const url = `${CONFIG.SUPABASE_URL}/storage/v1/object/public/photos/${p}`;
-      return `<img src="${esc(url)}" loading="lazy" crossorigin="anonymous"
-                   onerror="this.style.display='none'">`;
-    }).join('');
-    $$('img', holder).forEach(im => im.onclick = () => viewPhoto(im.src));
+    const urls = shots.map(s => `${CONFIG.SUPABASE_URL}/storage/v1/object/public/photos/${shotPath(s)}`);
+    const names = shots.map(shotName);
+    holder.innerHTML = shots.map((s, idx) => `
+      <figure class="shot">
+        <img src="${esc(urls[idx])}" loading="lazy" crossorigin="anonymous"
+             onerror="this.closest('figure').style.display='none'">
+        ${names[idx] ? `<figcaption>${esc(names[idx])}</figcaption>` : ''}
+      </figure>`).join('');
+    $$('figure.shot img', holder).forEach((im, idx) =>
+      im.onclick = () => viewPhotos(urls, idx, names));
     holder.hidden = false;
     btn.textContent = '✕ Close screenshots';
   });
@@ -503,7 +513,7 @@ export function wireVideoCards(scope, onDelete) {
         const c = isConfigured() && getClient();
         if (c) {
           if (v.path) await c.storage.from('videos').remove([v.path]);
-          if (v.screenshots?.length) await c.storage.from('photos').remove(v.screenshots);
+          if (v.screenshots?.length) await c.storage.from('photos').remove(v.screenshots.map(shotPath));
         }
       } catch { /* offline — the metadata delete still hides it everywhere */ }
       toast('Inspection deleted', 'ok');
