@@ -225,6 +225,26 @@ export function viewPhotos(urls, start = 0, labels = null) {
     </div>`);
   el.classList.add('photo-modal');
   const img = $('#pv-img', el);
+  // pin the name to the top-left of the VISIBLE picture (object-fit:contain
+  // letterboxes portrait shots on wide screens — the wrapper corner is off
+  // in empty space)
+  const positionLabel = () => {
+    const lb = $('#pv-label', el);
+    if (!lb || lb.hidden || !img.naturalWidth) return;
+    const box = img.getBoundingClientRect();
+    const wrap = $('.pv-wrap', el).getBoundingClientRect();
+    const na = img.naturalWidth / img.naturalHeight;
+    const ba = box.width / box.height;
+    let w, h;
+    if (ba > na) { h = box.height; w = h * na; } else { w = box.width; h = w / na; }
+    lb.style.left = `${box.left - wrap.left + (box.width - w) / 2 + 10}px`;
+    lb.style.top = `${box.top - wrap.top + (box.height - h) / 2 + 10}px`;
+  };
+  // measure twice: once on load, once after the modal's open animation
+  // settles (measuring mid-scale lands the label ~5% off)
+  const positionSoon = () => { positionLabel(); setTimeout(positionLabel, 220); };
+  img.onload = positionSoon;
+  window.addEventListener('resize', positionLabel);
   const show = n => {
     i = (n + urls.length) % urls.length;
     img.src = urls[i];
@@ -232,11 +252,13 @@ export function viewPhotos(urls, start = 0, labels = null) {
     if (c) c.textContent = `${i + 1} / ${urls.length}`;
     const lb = $('#pv-label', el);
     if (lb) { const t = labels && labels[i] || ''; lb.textContent = t; lb.hidden = !t; }
+    positionLabel();
   };
   show(i);
   const close = () => {
     el.classList.remove('photo-modal');
     document.removeEventListener('keydown', onKey);
+    window.removeEventListener('resize', positionLabel);
     closeModal();
   };
   const onKey = e => {

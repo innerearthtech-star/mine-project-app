@@ -498,6 +498,10 @@ main { flex: 1; position: relative; min-height: 0; }
 }
 .pv-prev { left: 8px; }
 .pv-next { right: 8px; }
+/* phones: keep the arrows barely-there so they don't cover the shot */
+@media (max-width: 699px) {
+  .pv-nav { background: #0b0f1436; color: #ffffffb8; }
+}
 .pv-count {
   position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
   background: #0b0f14d0; color: #fff; font-size: 13px; font-weight: 700;
