@@ -12,6 +12,7 @@ create table if not exists boreholes (
   roof_level text,                    -- well data (free text, usually feet)
   casing_bottom text,
   mine_floor text,
+  seals_set boolean default false,    -- owner marks: temp seals completed in the mine
   created_by text,
   author_id text,
   created_at timestamptz default now(),
@@ -22,6 +23,7 @@ create table if not exists boreholes (
 alter table boreholes add column if not exists roof_level text;
 alter table boreholes add column if not exists casing_bottom text;
 alter table boreholes add column if not exists mine_floor text;
+alter table boreholes add column if not exists seals_set boolean default false;
 
 -- Shared: notes on each borehole (photos = array of storage paths)
 create table if not exists notes (

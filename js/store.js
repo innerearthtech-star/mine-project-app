@@ -68,7 +68,9 @@ export async function save(table, row) {
   const prev = findRow(table, keyOf(table, row));
   let ts = nowISO();
   if (prev && String(prev.updated_at || '') >= ts) {
-    ts = new Date(Date.parse(prev.updated_at) + 1).toISOString();
+    const parsed = Date.parse(prev.updated_at);
+    // unparseable timestamp on the old row → just stamp now (garbage loses)
+    if (Number.isFinite(parsed)) ts = new Date(parsed + 1).toISOString();
   }
   row.updated_at = ts;
   putMem(table, row);

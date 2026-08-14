@@ -29,7 +29,8 @@ export async function openWell(id) {
   const el = sheet(`
     <div class="well-head">
       <div class="well-head-main">
-        <h3 class="well-name">${esc(b.name)} <button class="icon-btn" id="w-rename" title="Rename">${ic('pencil')}</button></h3>
+        <h3 class="well-name">${esc(b.name)}<span id="w-seals-badge" class="seals-tag" ${b.seals_set ? '' : 'hidden'}>✓ seals set</span>
+          <button class="icon-btn" id="w-rename" title="Rename">${ic('pencil')}</button></h3>
         <div class="well-meta">Added by ${esc(b.created_by || '?')} · ${fmtDateTime(b.created_at)}</div>
         <div class="well-meta mono">${b.lat.toFixed(6)}, ${b.lng.toFixed(6)}</div>
       </div>
@@ -62,6 +63,7 @@ export async function openWell(id) {
 
     <div class="well-tools">
       <button class="btn small ghost" id="w-move">${ic('move')} Move pin</button>
+      ${S.owner ? `<button class="btn small ${b.seals_set ? 'primary' : 'ghost'}" id="w-seals">${ic('check')} Seals set</button>` : ''}
       ${S.owner ? `<button class="btn small danger-ghost" id="w-delete">${ic('trash')} Delete</button>` : ''}
     </div>
 
@@ -183,6 +185,25 @@ export async function openWell(id) {
       toast('Pin moved', 'ok');
       openWell(id);
     }, `Line up the pin for ${b.name}`, [b.lat, b.lng]);
+  };
+
+  // seals set (owner only) — marks the well finished in the mine for everyone
+  const sealsBtn = $('#w-seals', el);
+  if (sealsBtn) sealsBtn.onclick = async () => {
+    const cur = findRow('boreholes', id);
+    const turningOn = !cur.seals_set;
+    const ok = await confirmDlg(
+      turningOn
+        ? `Mark ${cur.name} as seals set? Everyone will see it on the map.`
+        : `Remove the seals-set mark from ${cur.name}?`,
+      { okText: turningOn ? 'Seals set' : 'Remove mark' });
+    if (!ok) return;
+    await save('boreholes', { ...findRow('boreholes', id), seals_set: turningOn });
+    // update in place — no full re-render, drafts survive
+    $('#w-seals-badge', el).hidden = !turningOn;
+    sealsBtn.classList.toggle('primary', turningOn);
+    sealsBtn.classList.toggle('ghost', !turningOn);
+    toast(turningOn ? `${cur.name}: seals set ✓` : `${cur.name}: mark removed`, 'ok');
   };
 
   // delete (owner only)
@@ -311,6 +332,7 @@ function ic(name) {
     x: '<path d="M18 6 6 18M6 6l12 12"/>',
     camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
     move: '<path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>',
+    check: '<path d="M20 6L9 17l-5-5"/>',
     trash: '<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>',
   };
   return `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p[name]}</svg>`;
