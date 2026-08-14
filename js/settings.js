@@ -24,21 +24,22 @@ function renderCrew() {
     const tel = normalizePhone(u.phone);
     return `
       <div class="crew-row">
-        <div class="crew-info">
-          <div class="crew-name">${esc(u.name)}${me ? ' <span class="you-tag">you</span>' : ''}</div>
-          <div class="crew-meta">${esc(u.position || '')}${u.position && u.company ? ' · ' : ''}${esc(u.company || '')}</div>
-          ${tel ? `<a class="crew-phone" href="tel:${tel}">${esc(formatPhone(u.phone))}</a>` : ''}
+        <div class="crew-head">
+          <div class="crew-info">
+            <div class="crew-name">${esc(u.name)}${me ? ' <span class="you-tag">you</span>' : ''}</div>
+            <div class="crew-meta">${esc(u.position || '')}${u.position && u.company ? ' · ' : ''}${esc(u.company || '')}</div>
+            ${tel ? `<a class="crew-phone" href="tel:${tel}">${esc(formatPhone(u.phone))}</a>` : ''}
+          </div>
+          ${S.owner && !me ? `<button class="icon-btn tiny danger-ghost" data-remove="${u.id}" title="Remove">✕</button>` : ''}
         </div>
-        <div class="crew-actions">
-          ${S.owner && !me ? `
-            <button class="btn small ${u.can_videos ? 'primary' : 'ghost'}" data-vidtoggle="${u.id}"
-              title="Let them see inspection videos">${u.can_videos ? 'Videos ✓' : 'Videos'}</button>
-            <button class="btn small ${u.can_invite ? 'primary' : 'ghost'}" data-invtoggle="${u.id}"
-              title="Let them create one-time invite links">${u.can_invite ? 'Invites ✓' : 'Invites'}</button>
-            ${u.pin ? `<button class="btn small ghost" data-resetpin="${u.id}" title="Clear their PIN so they can set a new one">Reset PIN</button>` : ''}
-            <button class="icon-btn tiny danger-ghost" data-remove="${u.id}" title="Remove">✕</button>
-          ` : ''}
-        </div>
+        ${S.owner && !me ? `
+        <div class="crew-perms">
+          <button class="btn small perm ${u.can_videos ? 'perm-on' : ''}" data-vidtoggle="${u.id}"
+            title="Let them see inspection videos">Videos</button>
+          <button class="btn small perm ${u.can_invite ? 'perm-on' : ''}" data-invtoggle="${u.id}"
+            title="Let them create one-time invite links">Invites</button>
+          ${u.pin ? `<button class="btn small ghost" data-resetpin="${u.id}" title="Clear their PIN so they can set a new one">Reset PIN</button>` : ''}
+        </div>` : ''}
       </div>`;
   }).join('');
 }

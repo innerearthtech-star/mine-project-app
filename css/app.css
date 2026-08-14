@@ -463,11 +463,16 @@ main { flex: 1; position: relative; min-height: 0; }
 }
 
 /* ── Crew roster ─────────────────────────────────────────────────── */
-.crew-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 11px 2px; border-bottom: 1px solid var(--line);
-}
+.crew-row { padding: 12px 2px; border-bottom: 1px solid var(--line); }
 .crew-row:last-child { border-bottom: none; }
+.crew-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+/* permission toggles: label never changes, fill = granted (no reflow) */
+.crew-perms { display: flex; gap: 8px; margin-top: 9px; flex-wrap: wrap; }
+.perm { background: transparent; border-color: var(--line); color: var(--muted); }
+.perm.perm-on {
+  background: var(--accent); border-color: var(--accent);
+  color: #14100a; /* same font-weight as off state — zero shift on toggle */
+}
 .crew-info { min-width: 0; }
 .crew-name { font-size: 15px; font-weight: 700; }
 .you-tag {
@@ -477,7 +482,6 @@ main { flex: 1; position: relative; min-height: 0; }
 }
 .crew-meta { font-size: 13px; color: var(--muted); }
 .crew-phone { font-size: 14px; color: var(--accent); text-decoration: none; }
-.crew-actions { display: flex; align-items: center; gap: 6px; flex: none; flex-wrap: wrap; justify-content: flex-end; max-width: 46%; }
 
 /* ── Settings ────────────────────────────────────────────────────── */
 .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -499,7 +503,9 @@ main { flex: 1; position: relative; min-height: 0; }
   opacity: 0; pointer-events: none; transition: opacity .2s;
 }
 #sheet-backdrop.open, #modal-backdrop.open { opacity: 1; pointer-events: auto; }
-#modal-backdrop { z-index: 60; }
+/* modals must sit ABOVE the sign-in screen (z 100) — the PIN dialog
+   opens from it */
+#modal-backdrop { z-index: 110; }
 
 #sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
@@ -582,7 +588,7 @@ main { flex: 1; position: relative; min-height: 0; }
 
 /* ── Modal ───────────────────────────────────────────────────────── */
 #modal {
-  position: fixed; left: 50%; top: 50%; z-index: 70;
+  position: fixed; left: 50%; top: 50%; z-index: 120;
   transform: translate(-50%, -50%) scale(.95); opacity: 0; pointer-events: none;
   width: min(92vw, 380px);
   background: var(--surface); border: 1px solid var(--line);
@@ -630,7 +636,8 @@ input[type="date"]::-webkit-date-and-time-value {
 /* ── Toasts ──────────────────────────────────────────────────────── */
 #toasts {
   position: fixed; top: calc(14px + var(--safe-top)); left: 50%; transform: translateX(-50%);
-  z-index: 90; display: flex; flex-direction: column; gap: 8px; align-items: center;
+  z-index: 130; /* above modals AND the sign-in screen ("Wrong PIN" etc.) */
+  display: flex; flex-direction: column; gap: 8px; align-items: center;
   pointer-events: none; width: max-content; max-width: 92vw;
 }
 .toast {
