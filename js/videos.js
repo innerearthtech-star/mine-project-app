@@ -447,6 +447,8 @@ const videoURL = p => `${CONFIG.SUPABASE_URL}/storage/v1/object/public/videos/${
 // screenshots are stored as {path, name} (older rows: plain path strings)
 const shotPath = s => (typeof s === 'string' ? s : s.path);
 const shotName = s => (typeof s === 'string' ? '' : (s.name || ''));
+// nobody needs to see ".png" — show the name without the extension
+const prettyName = n => (n || '').replace(/\.[a-z0-9]{2,5}$/i, '');
 const trashIcon = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>`;
 
 export function wireVideoCards(scope, onDelete) {
@@ -489,7 +491,7 @@ export function wireVideoCards(scope, onDelete) {
     collapse();
     if (wasOpen) { catchUp(holder); return; }
     const urls = shots.map(s => `${CONFIG.SUPABASE_URL}/storage/v1/object/public/photos/${shotPath(s)}`);
-    const names = shots.map(shotName);
+    const names = shots.map(s => prettyName(shotName(s)));
     holder.innerHTML = shots.map((s, idx) => `
       <figure class="shot">
         <img src="${esc(urls[idx])}" loading="lazy" crossorigin="anonymous"

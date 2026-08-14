@@ -503,11 +503,15 @@ main { flex: 1; position: relative; min-height: 0; }
   background: #0b0f14d0; color: #fff; font-size: 13px; font-weight: 700;
   padding: 3px 12px; border-radius: 999px; z-index: 2;
 }
+/* photo name: plain text, top-left (clear of the X button top-right) */
 .pv-label {
-  position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
-  max-width: 88%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  background: #0b0f14cc; color: #fff; font-size: 13px; font-weight: 600;
-  padding: 4px 12px; border-radius: 999px; z-index: 2;
+  position: absolute; top: 14px; left: 14px; z-index: 2;
+  max-width: 72%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: #fff; font-size: 14px; font-weight: 700;
+  text-shadow: 0 1px 4px #000, 0 0 12px #000;
+}
+@media (min-width: 700px) {
+  .pv-label { font-size: 20px; } /* bigger on a computer screen */
 }
 .pv-label[hidden] { display: none; }
 
