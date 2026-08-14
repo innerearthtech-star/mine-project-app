@@ -137,11 +137,10 @@ function padIcon(group) {
 }
 
 function padPopupHTML(group) {
-  // west → east so the list reads like the pad looks on the ground
-  const sorted = [...group].sort((a, b) => a.lng - b.lng);
+  const sorted = [...group].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { numeric: true }));
   return `<div class="pin-pop">
     <div class="pin-pop-name">${sorted.length} wells on this pad</div>
-    <div class="pin-pop-order">west → east</div>
     ${sorted.map(b => `
       <button class="pad-row" data-open="${b.id}">
         <span>${esc(b.name)}</span><span class="pad-open">Open ›</span>
