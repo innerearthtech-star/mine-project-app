@@ -1,13 +1,12 @@
-// ── Boot, welcome screen, tab navigation, header status ────────────
+// ── Boot, welcome screen, waiting room, tab navigation ─────────────
 
-import { $, $$, esc, on, toast, normalizePhone, closeSheet, closeModal, modalForm } from './util.js';
-import { CONFIG } from './config.js';
+import { $, $$, esc, on, toast, normalizePhone, closeSheet, closeModal, modalForm, debounce } from './util.js';
 import { DB } from './db.js';
 import {
   S, loadAll, saveProfile, projectName, iAmRemoved, activeUsers, resumeAs,
-  checkUserPin, setUserPin, findUnusedInvite, consumeInvite, canISeeVideos,
+  checkUserPin, setUserPin, canISeeVideos, amIApproved, canIGrant, pendingUsers,
 } from './store.js';
-import { initSync, syncState, getClient } from './sync.js';
+import { initSync, syncState, kick } from './sync.js';
 import { initMap, refreshMapSize } from './map.js';
 import { initJob, renderJob } from './job.js';
 import { initContacts, renderContacts } from './contacts.js';
@@ -53,16 +52,23 @@ async function boot() {
   on('sync', renderHeader);
   on('owner', updateTabs);
   on('profile', renderHeader);
-  // if the owner removes this person, drop them back to the sign-up screen;
-  // and keep the "tap your name" list fresh as crew syncs in
   on('data:users', () => {
+    // removed by the owner → back to sign-in
     if (S.profile && !S.owner && iAmRemoved() && $('#app').classList.contains('show')) {
       $('#app').classList.remove('show');
       showWelcome({ removed: true });
       return;
     }
+    // waiting room unlocks itself the moment approval syncs in
+    if ($('#waiting').classList.contains('show') && amIApproved()) {
+      $('#waiting').classList.remove('show');
+      startApp();
+      toast("You're in — access granted 🎉", 'ok');
+      kick(); // now pull everything, not just the roster
+      return;
+    }
     if ($('#welcome').classList.contains('show') && welcomeRenderResume) welcomeRenderResume();
-    // granted/revoked permissions (videos tab) arrive via the roster
+    // granted/revoked permissions (videos tab, pending badge) arrive via roster
     if ($('#app').classList.contains('show')) updateTabs();
   });
 
@@ -70,44 +76,41 @@ async function boot() {
   const incomplete = S.profile && (!S.profile.first || !S.profile.phone);
   if (!S.profile || incomplete || (iAmRemoved() && !S.owner)) {
     showWelcome({ removed: Boolean(S.profile && iAmRemoved()) });
+  } else if (!amIApproved()) {
+    showWaiting();
   } else {
     startApp();
   }
 }
 
-let welcomeRenderResume = null; // lets the data:users handler refresh the list
-let pendingInvite = null;       // unused invite row to consume on sign-up
-
-// An invite code is valid if it exists and nobody has used it. Fresh
-// installs have nothing synced yet, so fall back to asking the server.
-async function validateInviteCode(code) {
-  const c = (code || '').trim().toUpperCase();
-  if (!c) return null;
-  const local = findUnusedInvite(c);
-  if (local) return local;
-  const client = getClient();
-  if (!client) return null;
-  try {
-    const { data } = await client.from('invites').select('*')
-      .eq('code', c).eq('deleted', false).is('used_by', null).limit(1);
-    return (data && data[0]) || null;
-  } catch { return null; }
-}
+let welcomeRenderResume = null; // lets the data:users handler refresh matches
 
 function showWelcome({ removed = false } = {}) {
-  // tear down any open well sheet / dialog before returning to sign-up
+  // tear down any open well sheet / dialog before returning to sign-in
   closeSheet();
   closeModal();
+  $('#waiting').classList.remove('show');
   const wrap = $('#welcome');
   wrap.classList.add('show');
   $('#welcome-title').textContent = `${projectName()} Project`;
 
-  const gated = Boolean(CONFIG.JOIN_CODE);
-  const gateForm = $('#gate-form');
-  const main = $('#welcome-main');
   const msg = $('#welcome-msg');
   const setMsg = m => { if (m) { msg.hidden = false; msg.textContent = m; } else { msg.hidden = true; } };
   setMsg(removed ? 'The site owner removed your access. Sign back in to rejoin.' : '');
+
+  // iOS: keep whichever field is being typed in visible above the keyboard
+  if (!wrap._kbWired) {
+    wrap._kbWired = true;
+    wrap.addEventListener('focusin', e => {
+      wrap.classList.add('kb');
+      setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch { } }, 300);
+    });
+    wrap.addEventListener('focusout', () => setTimeout(() => {
+      if (!wrap.contains(document.activeElement) || document.activeElement === document.body) {
+        wrap.classList.remove('kb');
+      }
+    }, 120));
+  }
 
   // pre-fill if we already know this person (re-joining after removal / edit)
   const p = S.profile;
@@ -123,27 +126,39 @@ function showWelcome({ removed = false } = {}) {
   const setErr = m => { if (m) { err.hidden = false; err.textContent = m; } else { err.hidden = true; } };
   setErr('');
 
-  // "Tap your name" — front and center once past the access code, so
-  // returning users (fresh install = fresh storage on iPhone) never
-  // retype their details.
+  // route after a successful sign-in / sign-up
+  const routeIn = (welcomeText) => {
+    wrap.classList.remove('show');
+    if (amIApproved()) {
+      startApp();
+      toast(welcomeText, 'ok');
+    } else {
+      showWaiting();
+    }
+  };
+
+  // "Find your name" — no names shown until they start typing, then tap
+  // your match and prove it with your PIN
+  const findInput = $('#w-find');
   const renderResume = () => {
     const box = $('#welcome-resume');
-    if (!box || main.hidden) return;
-    const users = activeUsers();
-    if (!users.length) { box.innerHTML = ''; return; }
-    box.innerHTML = `
-      <div class="resume-title">Already signed up? Tap your name</div>
-      <div class="resume-list">
-        ${users.map(u => `<button class="resume-row" data-uid="${esc(u.id)}">
-          <span class="resume-name">${esc(u.name)}</span>
-          <span class="resume-co">${esc(u.company || '')}</span></button>`).join('')}
-      </div>
-      <div class="resume-or">— or —</div>`;
+    if (!box) return;
+    const q = (findInput ? findInput.value : '').trim().toLowerCase();
+    if (q.length < 2) { box.innerHTML = ''; return; }
+    const matches = activeUsers().filter(u => u.name.toLowerCase().includes(q)).slice(0, 6);
+    if (!matches.length) {
+      box.innerHTML = `<div class="resume-none">No match — check the spelling, or sign up below.</div>`;
+      return;
+    }
+    box.innerHTML = `<div class="resume-list">
+      ${matches.map(u => `<button class="resume-row" data-uid="${esc(u.id)}">
+        <span class="resume-name">${esc(u.name)}</span>
+        <span class="resume-co">${esc(u.company || '')}</span></button>`).join('')}
+    </div>`;
     $$('.resume-row', box).forEach(btn => btn.onclick = async () => {
       const u = activeUsers().find(x => x.id === btn.dataset.uid);
       if (!u) return;
       if (u.pin) {
-        // account is PIN-protected — verify it's really them
         const res = await modalForm({
           title: `Hi ${u.first} — enter your PIN`,
           fields: [{ name: 'pin', label: '4-digit PIN', type: 'password', inputmode: 'numeric', required: true }],
@@ -153,7 +168,7 @@ function showWelcome({ removed = false } = {}) {
         if (!await checkUserPin(u, (res.pin || '').trim())) { toast('Wrong PIN', 'warn'); return; }
         await resumeAs(u.id);
       } else {
-        // account made before PINs existed — set one now, first-come
+        // account made before PINs existed — set one now
         const res = await modalForm({
           title: `Hi ${u.first} — set your PIN`,
           fields: [{ name: 'pin', label: 'Create a 4-digit PIN', type: 'password', inputmode: 'numeric', required: true }],
@@ -165,56 +180,13 @@ function showWelcome({ removed = false } = {}) {
         await resumeAs(u.id);
         await setUserPin(u.id, pin);
       }
-      wrap.classList.remove('show');
-      startApp();
-      toast(`Welcome back, ${S.profile.first}`, 'ok');
+      routeIn(`Welcome back, ${S.profile.first}`);
     });
   };
   welcomeRenderResume = renderResume;
-
-  const openMain = () => {
-    gateForm.style.display = 'none';
-    main.hidden = false;
+  if (findInput) {
+    findInput.oninput = debounce(renderResume, 120);
     renderResume();
-  };
-
-  if (!gated) {
-    openMain();
-  } else {
-    gateForm.style.display = '';
-    main.hidden = true;
-    gateForm.onsubmit = async e => {
-      e.preventDefault();
-      const entered = $('#w-code').value.trim();
-      if (entered === CONFIG.JOIN_CODE) {
-        if (!removed) setMsg('');
-        openMain();
-        return;
-      }
-      const invite = await validateInviteCode(entered);
-      if (invite) {
-        pendingInvite = invite;
-        if (!removed) setMsg('');
-        openMain();
-      } else {
-        setMsg('Wrong or already-used code — ask whoever shared the app for a new invite.');
-      }
-    };
-
-    // arrived through a one-time invite link (…?join=CODE)
-    const joinCode = new URLSearchParams(location.search).get('join');
-    if (joinCode) {
-      history.replaceState(null, '', location.pathname); // don't retry on reload
-      validateInviteCode(joinCode).then(invite => {
-        if (main.hidden === false) return; // already through the gate
-        if (invite) {
-          pendingInvite = invite;
-          openMain();
-        } else {
-          setMsg('That invite link was already used — ask for a new one, or enter an access code.');
-        }
-      });
-    }
   }
 
   const form = $('#welcome-form');
@@ -230,10 +202,27 @@ function showWelcome({ removed = false } = {}) {
     const pin = $('#w-pin').value.trim();
     if (!/^\d{4}$/.test(pin)) { setErr('Your PIN must be exactly 4 digits.'); $('#w-pin').focus(); return; }
     await saveProfile({ first, last, company, position, phone, pin });
-    if (pendingInvite) { await consumeInvite(pendingInvite); pendingInvite = null; }
-    wrap.classList.remove('show');
-    startApp();
-    toast(`Welcome, ${first} — pins you add show your name`, 'ok');
+    kick(); // push the new account up right away
+    routeIn(`Welcome, ${first} — pins you add show your name`);
+  };
+}
+
+// Signed up but not approved yet: friendly holding screen, no data on
+// the phone. Unlocks live via the data:users watcher above.
+function showWaiting() {
+  closeSheet();
+  closeModal();
+  $('#welcome').classList.remove('show');
+  $('#app').classList.remove('show');
+  const w = $('#waiting');
+  w.classList.add('show');
+  $('#waiting-name').textContent = S.profile ? `Signed in as ${S.profile.name}` : '';
+  $('#waiting-check').onclick = () => { kick(); toast('Checking…', 'info'); };
+  $('#waiting-switch').onclick = async () => {
+    await DB.kvSet('profile', null);
+    S.profile = null;
+    w.classList.remove('show');
+    showWelcome();
   };
 }
 
@@ -246,6 +235,24 @@ function startApp() {
   renderContacts();
   renderSettings();
   if (S.owner) renderJob();
+  notifyNewJoins();
+}
+
+// Tell people with granting power how many joined since their last visit
+async function notifyNewJoins() {
+  if (!canIGrant()) return;
+  const seen = await DB.kvGet('rosterSeenAt');
+  if (seen) {
+    const fresh = S.users.filter(u =>
+      !u.deleted && u.id !== S.profile.id && String(u.created_at || '') > String(seen)).length;
+    const waiting = pendingUsers().length;
+    if (fresh) {
+      toast(`${fresh} new ${fresh === 1 ? 'person' : 'people'} joined — grant access in Settings`, 'ok');
+    } else if (waiting) {
+      toast(`${waiting} ${waiting === 1 ? 'person is' : 'people are'} waiting for access`, 'warn');
+    }
+  }
+  await DB.kvSet('rosterSeenAt', new Date().toISOString());
 }
 
 function renderHeader() {
@@ -262,6 +269,9 @@ function updateTabs() {
   if (!S.owner && currentTab === 'job') showTab('map');
   if (!canISeeVideos() && currentTab === 'videos') showTab('map');
   if (S.owner) renderJob();
+  // red dot on Settings for people who can grant access, while anyone waits
+  const dotEl = $('#settings-dot');
+  if (dotEl) dotEl.hidden = !(canIGrant() && pendingUsers().length > 0);
 }
 
 function wireTabs() {

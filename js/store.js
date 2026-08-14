@@ -90,6 +90,9 @@ export async function mergeRemote(table, row) {
   if (PRIVATE_TABLES.has(table)) {
     if (!S.owner || row.owner_key !== S.ownerKey) return; // not my private data
   }
+  // unapproved devices only receive the roster (to detect approval) and
+  // the project name — no job data lands on their phone at all
+  if (!amIApproved() && table !== 'users' && table !== 'app_settings') return;
   const local = findRow(table, keyOf(table, row));
   if (local && String(local.updated_at || '') >= String(row.updated_at || '')) return;
   putMem(table, row);
@@ -256,6 +259,32 @@ export async function setUserVideoPermission(id, allowed) {
   const u = findRow('users', id);
   if (u) await save('users', { ...u, can_videos: Boolean(allowed), deleted: false });
 }
+
+// ── Approval model: sign-up is open, but a new account sees NOTHING
+// until someone with granting power approves it ──────────────────────
+export function amIApproved() {
+  if (S.owner) return true;
+  const me = S.profile && findRow('users', S.profile.id);
+  return Boolean(me && me.approved && !me.deleted);
+}
+// May approve people / grant videos: the owner, plus anyone the owner
+// has deputized. Only the owner can deputize.
+export function canIGrant() {
+  if (S.owner) return true;
+  const me = S.profile && findRow('users', S.profile.id);
+  return Boolean(me && me.can_grant && me.approved && !me.deleted);
+}
+export async function setUserApproved(id, allowed) {
+  const u = findRow('users', id);
+  if (u) await save('users', { ...u, approved: Boolean(allowed), deleted: false });
+}
+export async function setUserGrantPermission(id, allowed) {
+  const u = findRow('users', id);
+  if (u) await save('users', { ...u, can_grant: Boolean(allowed), deleted: false });
+}
+export const pendingUsers = () =>
+  S.users.filter(u => !u.deleted && !u.approved)
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 
 // PIN helpers for the tap-your-name sign-in
 export const checkUserPin = async (u, pinTry) =>

@@ -3,8 +3,8 @@
 import { $, $$, esc, on, toast, confirmDlg, modalForm, sha256hex, fmtTime, formatPhone, normalizePhone } from './util.js';
 import { CONFIG } from './config.js';
 import {
-  S, projectName, setSetting, saveProfile, unlockOwner, lockOwner, activeUsers, removeUser, setUserPin,
-  canIInvite, newInvite, setUserInvitePermission, setUserVideoPermission,
+  S, projectName, saveProfile, unlockOwner, lockOwner, activeUsers, removeUser, setUserPin,
+  setUserVideoPermission, canIGrant, pendingUsers, setUserApproved, setUserGrantPermission,
 } from './store.js';
 import { syncState, kick } from './sync.js';
 
@@ -16,32 +16,41 @@ export function initSettings() {
   on('data:users', renderSettings);
 }
 
+function crewRow(u) {
+  const me = u.id === S.profile.id;
+  const tel = normalizePhone(u.phone);
+  const granter = canIGrant();
+  return `
+    <div class="crew-row ${u.approved ? '' : 'crew-pending'}">
+      <div class="crew-head">
+        <div class="crew-info">
+          <div class="crew-name">${esc(u.name)}${me ? ' <span class="you-tag">you</span>' : ''}
+            ${!u.approved ? ' <span class="wait-tag">waiting</span>' : ''}</div>
+          <div class="crew-meta">${esc(u.position || '')}${u.position && u.company ? ' · ' : ''}${esc(u.company || '')}</div>
+          ${tel ? `<a class="crew-phone" href="tel:${tel}">${esc(formatPhone(u.phone))}</a>` : ''}
+        </div>
+        ${S.owner && !me ? `<button class="icon-btn tiny danger-ghost" data-remove="${u.id}" title="Remove">✕</button>` : ''}
+      </div>
+      ${granter && !me ? `
+      <div class="crew-perms">
+        <button class="btn small perm ${u.approved ? 'perm-on' : ''}" data-approve="${u.id}"
+          title="Base access: map, wells, notes, contacts">Access</button>
+        <button class="btn small perm ${u.can_videos ? 'perm-on' : ''}" data-vidtoggle="${u.id}"
+          title="Let them see inspection videos">Videos</button>
+        ${S.owner ? `<button class="btn small perm ${u.can_grant ? 'perm-on' : ''}" data-granttoggle="${u.id}"
+          title="Let them approve people and grant access/videos">Can grant</button>` : ''}
+        ${S.owner && u.pin ? `<button class="btn small ghost" data-resetpin="${u.id}" title="Clear their PIN so they can set a new one">Reset PIN</button>` : ''}
+      </div>` : ''}
+    </div>`;
+}
+
 function renderCrew() {
   const users = activeUsers();
   if (!users.length) return `<div class="empty-hint">No one yet.</div>`;
-  return users.map(u => {
-    const me = u.id === S.profile.id;
-    const tel = normalizePhone(u.phone);
-    return `
-      <div class="crew-row">
-        <div class="crew-head">
-          <div class="crew-info">
-            <div class="crew-name">${esc(u.name)}${me ? ' <span class="you-tag">you</span>' : ''}</div>
-            <div class="crew-meta">${esc(u.position || '')}${u.position && u.company ? ' · ' : ''}${esc(u.company || '')}</div>
-            ${tel ? `<a class="crew-phone" href="tel:${tel}">${esc(formatPhone(u.phone))}</a>` : ''}
-          </div>
-          ${S.owner && !me ? `<button class="icon-btn tiny danger-ghost" data-remove="${u.id}" title="Remove">✕</button>` : ''}
-        </div>
-        ${S.owner && !me ? `
-        <div class="crew-perms">
-          <button class="btn small perm ${u.can_videos ? 'perm-on' : ''}" data-vidtoggle="${u.id}"
-            title="Let them see inspection videos">Videos</button>
-          <button class="btn small perm ${u.can_invite ? 'perm-on' : ''}" data-invtoggle="${u.id}"
-            title="Let them create one-time invite links">Invites</button>
-          ${u.pin ? `<button class="btn small ghost" data-resetpin="${u.id}" title="Clear their PIN so they can set a new one">Reset PIN</button>` : ''}
-        </div>` : ''}
-      </div>`;
-  }).join('');
+  // people waiting for access float to the top for granters
+  const pending = canIGrant() ? users.filter(u => !u.approved && u.id !== S.profile.id) : [];
+  const rest = users.filter(u => !pending.includes(u));
+  return [...pending, ...rest].map(crewRow).join('');
 }
 
 export function renderSettings() {
@@ -96,15 +105,10 @@ export function renderSettings() {
     </section>
 
     <section class="card">
-      <h4>Invite someone</h4>
-      ${canIInvite() ? `
-        <div class="setting-hint">Each invite link works <b>once</b> — send it to one person while
-        you have signal. They tap it, sign up, and the link is dead.</div>
-        <button class="btn small primary" id="s-invite">✉️ ${navigator.share ? 'Share invite link' : 'Copy invite link'}</button>
-      ` : `
-        <div class="setting-hint">Adding someone takes a one-time invite link — ask the app owner
-        (or an authorized crew member) to send one.</div>
-      `}
+      <h4>Add someone</h4>
+      <div class="setting-hint">Send them the app link — they sign up and land in a waiting room
+      with <b>no access</b> until ${canIGrant() ? 'you approve them here (they float to the top of the crew list)' : 'someone with granting power approves them'}.</div>
+      <button class="btn small primary" id="s-share">${navigator.share ? '✉️ Share the app link' : '📋 Copy the app link'}</button>
       <div class="setting-hint" style="margin-top:10px">
         📱 <b>Install on your phone:</b> iPhone — Share button → “Add to Home Screen”.
         Android — browser menu → “Install app”.
@@ -189,41 +193,40 @@ export function renderSettings() {
     }
   };
 
-  const inviteBtn = $('#s-invite');
-  if (inviteBtn) inviteBtn.onclick = async () => {
-    inviteBtn.disabled = true;
-    try {
-      const inv = await newInvite();
-      kick(); // push it now so the link works the moment it's sent
-      const url = `${location.origin}${location.pathname}?join=${inv.code}`;
-      const text = `Join ${projectName()} Project: ${url}\nOne-time invite — code ${inv.code}`;
-      if (navigator.share) {
-        try { await navigator.share({ title: `${projectName()} Project`, text }); }
-        catch { /* user closed the share sheet */ }
-      } else {
-        await navigator.clipboard.writeText(text);
-        toast('Invite copied — send it to one person', 'ok');
-      }
-    } catch {
-      toast('Could not create the invite — try again', 'warn');
-    } finally {
-      inviteBtn.disabled = false;
+  const shareBtn = $('#s-share');
+  if (shareBtn) shareBtn.onclick = async () => {
+    const url = location.origin + location.pathname;
+    const text = `Join ${projectName()} Project: ${url}\nSign up and I'll approve your access.`;
+    if (navigator.share) {
+      try { await navigator.share({ title: `${projectName()} Project`, text }); }
+      catch { /* user closed the share sheet */ }
+    } else {
+      try { await navigator.clipboard.writeText(text); toast('Link copied', 'ok'); }
+      catch { toast('Could not copy the link', 'warn'); }
     }
   };
 
-  // owner-only: grant / revoke invite permission
-  $$('[data-invtoggle]').forEach(btn => btn.onclick = async () => {
-    const u = activeUsers().find(x => x.id === btn.dataset.invtoggle);
+  // granters: approve / revoke base access
+  $$('[data-approve]').forEach(btn => btn.onclick = async () => {
+    const u = activeUsers().find(x => x.id === btn.dataset.approve);
     if (!u) return;
-    await setUserInvitePermission(u.id, !u.can_invite);
-    toast(u.can_invite ? `${u.name} can no longer invite` : `${u.name} can now send invite links`, 'ok');
+    await setUserApproved(u.id, !u.approved);
+    toast(u.approved ? `${u.name}'s access was turned off` : `${u.name} is in — access granted`, 'ok');
   });
 
-  // owner-only: grant / revoke video visibility
+  // granters: grant / revoke video visibility
   $$('[data-vidtoggle]').forEach(btn => btn.onclick = async () => {
     const u = activeUsers().find(x => x.id === btn.dataset.vidtoggle);
     if (!u) return;
     await setUserVideoPermission(u.id, !u.can_videos);
     toast(u.can_videos ? `${u.name} can no longer see videos` : `${u.name} can now see inspection videos`, 'ok');
+  });
+
+  // owner only: deputize someone to approve/grant for others
+  $$('[data-granttoggle]').forEach(btn => btn.onclick = async () => {
+    const u = activeUsers().find(x => x.id === btn.dataset.granttoggle);
+    if (!u) return;
+    await setUserGrantPermission(u.id, !u.can_grant);
+    toast(u.can_grant ? `${u.name} can no longer grant access` : `${u.name} can now approve people & grant access`, 'ok');
   });
 }

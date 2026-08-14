@@ -69,8 +69,10 @@ create table if not exists users (
   position text default '',
   phone text default '',               -- 10 digits, no formatting
   pin text,                            -- sha256(id:pin) — guards tap-to-sign-in
-  can_invite boolean default false,    -- owner grants this; lets them make invite links
-  can_videos boolean default false,    -- owner grants this; lets them see inspections
+  can_invite boolean default false,    -- retired (invite links replaced by approvals)
+  can_videos boolean default false,    -- grant: can see inspection videos
+  approved boolean default false,      -- grant: base access (map, notes, contacts)
+  can_grant boolean default false,     -- owner-only grant: may approve/grant others
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   deleted boolean default false        -- owner set this to remove someone
@@ -78,6 +80,8 @@ create table if not exists users (
 alter table users add column if not exists pin text;
 alter table users add column if not exists can_invite boolean default false;
 alter table users add column if not exists can_videos boolean default false;
+alter table users add column if not exists approved boolean default false;
+alter table users add column if not exists can_grant boolean default false;
 
 -- Shared: one-time invite links (each code admits exactly one sign-up)
 create table if not exists invites (

@@ -91,6 +91,23 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
 .resume-co { font-size: 13px; color: var(--muted); text-align: right; }
 .resume-or { text-align: center; font-size: 12px; color: var(--muted); margin: 16px 0 4px; }
 
+/* extra scroll room while the phone keyboard is up, so the focused
+   field can always be scrolled above it */
+#welcome.kb { padding-bottom: 46vh; }
+.resume-none { color: var(--muted); font-size: 13px; text-align: left; padding: 6px 2px 2px; }
+
+/* ── Waiting room (signed up, not approved yet) ──────────────────── */
+#waiting {
+  position: fixed; inset: 0; z-index: 95; display: none;
+  background: radial-gradient(120% 90% at 50% 0%, #16202c 0%, var(--bg) 60%);
+  align-items: center; justify-content: center; padding: 24px;
+}
+#waiting.show { display: flex; }
+#waiting .welcome-card h1 { font-size: 26px; margin-bottom: 4px; }
+.waiting-icon { font-size: 44px; margin-bottom: 10px; }
+.waiting-msg { color: var(--muted); font-size: 14px; margin: 14px 0 20px; line-height: 1.5; }
+#waiting-switch { margin-top: 10px; }
+
 /* ── App frame ───────────────────────────────────────────────────── */
 #app { display: none; height: 100%; }
 #app.show { display: flex; flex-direction: column; }
@@ -539,6 +556,17 @@ main { flex: 1; position: relative; min-height: 0; }
 }
 .crew-meta { font-size: 13px; color: var(--muted); }
 .crew-phone { font-size: 14px; color: var(--accent); text-decoration: none; }
+.crew-pending { background: #f5a5240d; border-radius: 10px; padding-left: 8px; padding-right: 8px; }
+.wait-tag {
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px;
+  background: var(--amber); color: #14100a; padding: 1px 7px; border-radius: 999px;
+  vertical-align: middle; margin-left: 4px;
+}
+.tab-dot {
+  position: absolute; top: 6px; right: calc(50% - 18px);
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--red); box-shadow: 0 0 6px #f4595f99;
+}
 
 /* ── Settings ────────────────────────────────────────────────────── */
 .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

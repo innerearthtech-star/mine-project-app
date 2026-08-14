@@ -4,7 +4,7 @@
 
 import { CONFIG } from './config.js';
 import { DB } from './db.js';
-import { S, SYNCED_TABLES, PRIVATE_TABLES, mergeRemote } from './store.js';
+import { S, SYNCED_TABLES, PRIVATE_TABLES, mergeRemote, amIApproved } from './store.js';
 import { emit, on } from './util.js';
 
 let client = null;
@@ -157,6 +157,8 @@ async function prunePhotoBlobs() {
 async function pullAll() {
   const PAGE = 1000; // PostgREST caps responses; page so nothing is missed
   for (const table of SYNCED_TABLES) {
+    // waiting-room devices only fetch the roster + project name
+    if (!amIApproved() && table !== 'users' && table !== 'app_settings') continue;
     const isPrivate = PRIVATE_TABLES.has(table);
     if (isPrivate && (!S.owner || !S.ownerKey)) continue;
     const pk = table === 'app_settings' ? 'key' : 'id';

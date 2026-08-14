@@ -32,18 +32,15 @@
       <p class="welcome-sub">Sign in to get started</p>
       <div id="welcome-msg" class="welcome-error" hidden></div>
 
-      <!-- step 1: shared access code -->
-      <form id="gate-form">
-        <label class="wl">Access code
-          <input id="w-code" type="text" placeholder="Ask whoever shared the app" autocomplete="off" autocapitalize="none" maxlength="40">
+      <!-- tap your name, or create an account (no code — new accounts
+           wait for approval and see nothing until granted) -->
+      <div id="welcome-main">
+        <div class="wl-form-head">Already signed up? Find your name</div>
+        <label class="wl">
+          <input id="w-find" type="search" placeholder="Start typing your name…" autocomplete="off">
         </label>
-        <button class="btn primary big" type="submit">Continue</button>
-      </form>
-
-      <!-- step 2: tap your name, or create an account -->
-      <div id="welcome-main" hidden>
         <div id="welcome-resume"></div>
-        <div class="wl-form-head">New here? Create your account</div>
+        <div class="wl-form-head" id="new-here-head">New here? Create your account</div>
         <form id="welcome-form">
           <div class="welcome-row">
             <label class="wl">First name
@@ -71,6 +68,20 @@
       </div>
 
       <p class="welcome-note">Your name shows on every pin and note you add, so the crew knows who logged what.</p>
+      <p class="welcome-brand">Built by <b>Inner Earth Tech</b></p>
+    </div>
+  </div>
+
+  <!-- Waiting room: signed up, not yet approved -->
+  <div id="waiting">
+    <div class="welcome-card">
+      <div class="waiting-icon">⏳</div>
+      <h1>Hang tight</h1>
+      <p class="welcome-sub" id="waiting-name"></p>
+      <p class="waiting-msg">Your account is in — access just hasn't been granted yet.
+      This screen unlocks on its own the moment you're approved.</p>
+      <button class="btn big ghost" id="waiting-check">Check again</button>
+      <button class="btn small ghost" id="waiting-switch">Not you? Switch person</button>
       <p class="welcome-brand">Built by <b>Inner Earth Tech</b></p>
     </div>
   </div>
@@ -181,9 +192,10 @@
         <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3A19.5 19.5 0 0 1 5.1 13 19.8 19.8 0 0 1 2 4.2 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7A2 2 0 0 1 22 16.9z"/></svg>
         <span>Contacts</span>
       </button>
-      <button class="tab-btn" data-tab="settings">
+      <button class="tab-btn" data-tab="settings" style="position:relative">
         <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
         <span>Settings</span>
+        <span class="tab-dot" id="settings-dot" hidden></span>
       </button>
     </nav>
   </div>
