@@ -8,7 +8,7 @@ import {
   fmtDate, fmtTime, fmtDateTime, toLocalInput,
 } from './util.js';
 import { CONFIG } from './config.js';
-import { S, findRow, softDelete, activeBoreholes, activeVideos, newVideo, canISeeVideos } from './store.js';
+import { S, findRow, softDelete, activeBoreholes, activeVideos, newVideo, canISeeVideos, canIUpload } from './store.js';
 import { isConfigured, getClient, kick } from './sync.js';
 
 let selectedWell = null;   // {id, name} chosen in the picker
@@ -51,8 +51,9 @@ export function renderVideosTab() {
       ask the app owner for access.</div>`;
     return;
   }
-  // Uploading is owner-only. Permitted crew can search and watch.
-  const canUpload = isConfigured() && S.owner;
+  // Uploading is its own grant (owner always can); everyone with the
+  // Videos grant can search and watch.
+  const canUpload = isConfigured() && canIUpload();
   root.innerHTML = `
     ${canUpload ? `
     <section class="card" id="upload-card">

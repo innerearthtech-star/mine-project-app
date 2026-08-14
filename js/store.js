@@ -304,6 +304,18 @@ export async function setUserJobPermission(id, allowed) {
   if (u) await save('users', { ...u, can_job: Boolean(allowed), deleted: false });
 }
 
+// Video uploading: separate grant from viewing (needs viewing to matter,
+// since the tab itself is hidden without it)
+export function canIUpload() {
+  if (S.owner) return true;
+  const me = S.profile && findRow('users', S.profile.id);
+  return Boolean(me && me.can_upload && me.can_videos && me.approved && !me.deleted);
+}
+export async function setUserUploadPermission(id, allowed) {
+  const u = findRow('users', id);
+  if (u) await save('users', { ...u, can_upload: Boolean(allowed), deleted: false });
+}
+
 // PIN helpers for the tap-your-name sign-in
 export const checkUserPin = async (u, pinTry) =>
   Boolean(u.pin) && u.pin === await sha256hex(`${u.id}:${pinTry}`);

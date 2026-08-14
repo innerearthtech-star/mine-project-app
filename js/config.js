@@ -11,6 +11,10 @@ export const CONFIG = {
   // Change this to anything you like before sharing the app.
   OWNER_CODE: 'Wackers1',
 
+  // Only the account with this cell number sees the "Admin tools" unlock
+  // in Settings (keeps the unlock prompt off everyone else's screen).
+  OWNER_PHONE: '6183831543',
+
   // Join code required to create a NEW account (light gate so randoms who
   // stumble on the link can't sign up). Tell it to people you invite.
   // Set to '' to turn the gate off. Returning users (tap-your-name) skip it.

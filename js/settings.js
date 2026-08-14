@@ -5,7 +5,7 @@ import { CONFIG } from './config.js';
 import {
   S, projectName, saveProfile, unlockOwner, lockOwner, activeUsers, removeUser, setUserPin,
   setUserVideoPermission, canIGrant, pendingUsers, setUserApproved, setUserGrantPermission,
-  setUserJobPermission,
+  setUserJobPermission, setUserUploadPermission,
 } from './store.js';
 import { syncState, kick } from './sync.js';
 
@@ -38,6 +38,8 @@ function crewRow(u) {
           title="Base access: map, wells, notes, contacts">Access</button>
         <button class="btn small perm ${u.can_videos ? 'perm-on' : ''}" data-vidtoggle="${u.id}"
           title="Let them see inspection videos">Videos</button>
+        <button class="btn small perm ${u.can_upload ? 'perm-on' : ''}" data-uploadtoggle="${u.id}"
+          title="Let them upload inspections (needs Videos too)">Upload</button>
         <button class="btn small perm ${u.can_job ? 'perm-on' : ''}" data-jobtoggle="${u.id}"
           title="Give them their own private Job tab (their runs/hours only)">Job</button>
         ${S.owner ? `<button class="btn small perm ${u.can_grant ? 'perm-on' : ''}" data-granttoggle="${u.id}"
@@ -98,14 +100,15 @@ export function renderSettings() {
         : `<div class="setting-hint">Supabase isn't configured yet — pins and notes stay on this phone. See SETUP.md.</div>`}
     </section>
 
+    ${(S.owner || (S.profile.phone === CONFIG.OWNER_PHONE)) ? `
     <section class="card">
       <h4>Admin tools</h4>
       ${S.owner
-        ? `<div class="setting-hint">🔓 Unlocked on this phone — your private <b>Job tab</b> (runs, hours, night stays) and <b>video uploading</b> are on. Just for you.</div>
+        ? `<div class="setting-hint">🔓 Unlocked on this phone — your private <b>Job tab</b> and full admin control are on.</div>
            <button class="btn small ghost" id="s-lock">Lock on this phone</button>`
-        : `<div class="setting-hint">🔒 The <b>Job tab</b> (billing, runs, hours) and <b>uploading videos</b> are admin-only. Enter your code to turn them on for this phone.</div>
+        : `<div class="setting-hint">🔒 Enter your admin code to unlock this phone.</div>
            <button class="btn small primary" id="s-unlock">Unlock admin tools</button>`}
-    </section>
+    </section>` : ''}
 
     <section class="card">
       <h4>Add someone</h4>
@@ -223,6 +226,15 @@ export function renderSettings() {
     if (!u) return;
     await setUserVideoPermission(u.id, !u.can_videos);
     toast(u.can_videos ? `${u.name} can no longer see videos` : `${u.name} can now see inspection videos`, 'ok');
+  });
+
+  // granters: let someone upload inspections
+  $$('[data-uploadtoggle]').forEach(btn => btn.onclick = async () => {
+    const u = activeUsers().find(x => x.id === btn.dataset.uploadtoggle);
+    if (!u) return;
+    await setUserUploadPermission(u.id, !u.can_upload);
+    if (!u.can_upload && !u.can_videos) toast(`${u.name} can upload — also turn on Videos so they can see the tab`, 'warn');
+    else toast(u.can_upload ? `${u.name} can no longer upload` : `${u.name} can now upload inspections`, 'ok');
   });
 
   // granters: give someone their own private Job tab
