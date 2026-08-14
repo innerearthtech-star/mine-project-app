@@ -176,6 +176,9 @@ function groupWells(list) {
 const POPUP_OPTS = { className: 'pin-popup', offset: [0, -34], autoPanPadding: [24, 90] };
 // past this zoom there's no more room to expand — fall back to the list
 const PAD_MAX_ZOOM = 20.5;
+// single pins: tapped from way out, fly to a comfortable site view first
+const SINGLE_ZOOM_MIN = 15;
+const SINGLE_ZOOM_TO = 16;
 
 // Cluster tap = zoom in to expand (IBE-style). Only when we're already
 // maxed out and the wells still can't separate does the pick-list open.
@@ -188,9 +191,18 @@ function onPadClick(m) {
   }
 }
 function openPadList(m) {
-  if (!m.getPopup()) m.bindPopup('', POPUP_OPTS);
-  m.setPopupContent(padPopupHTML(m._group));
-  m.openPopup();
+  L.popup(POPUP_OPTS).setLatLng(m.getLatLng()).setContent(padPopupHTML(m._group)).openOn(map);
+}
+
+function onSingleClick(m) {
+  if (map.getZoom() < SINGLE_ZOOM_MIN) {
+    map.flyTo(m.getLatLng(), SINGLE_ZOOM_TO, { duration: 0.6 });
+  } else {
+    openSinglePopup(m);
+  }
+}
+function openSinglePopup(m) {
+  L.popup(POPUP_OPTS).setLatLng(m.getLatLng()).setContent(popupHTML(m._well)).openOn(map);
 }
 
 function renderMarkers() {
@@ -209,19 +221,14 @@ function renderMarkers() {
       if (existing._sig !== sig) {
         existing.setLatLng([lat, lng]);
         existing.setIcon(single ? pinIcon(g[0]) : padIcon(g));
-        if (single) {
-          existing.setPopupContent(popupHTML(g[0]));
-        } else {
-          existing._group = g;
-          if (existing.getPopup()) existing.setPopupContent(padPopupHTML(g));
-        }
-        if (existing.isPopupOpen()) wirePopupBtn(existing.getPopup());
+        if (single) existing._well = g[0]; else existing._group = g;
         existing._sig = sig;
       }
     } else {
       const m = L.marker([lat, lng], { icon: single ? pinIcon(g[0]) : padIcon(g) }).addTo(map);
       if (single) {
-        m.bindPopup(popupHTML(g[0]), POPUP_OPTS);
+        m._well = g[0];
+        m.on('click', () => onSingleClick(m));
       } else {
         m._group = g;
         m.on('click', () => onPadClick(m));
@@ -357,7 +364,7 @@ function wireControls() {
               [...markers.entries()].find(([k]) => k.startsWith('pad:') && k.includes(b.id))?.[1];
             if (!m) return;
             if (m._group) openPadList(m); // show the list so they can pick it
-            else m.openPopup();
+            else openSinglePopup(m);
           }, 850);
         }
       };
