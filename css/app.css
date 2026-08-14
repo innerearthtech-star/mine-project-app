@@ -362,7 +362,7 @@ main { flex: 1; position: relative; min-height: 0; }
 .row-mid { color: var(--muted); flex: 1; }
 .row-strong { font-weight: 700; }
 .row-note { color: var(--muted); flex: 1; text-align: right; font-size: 13px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  white-space: normal; overflow-wrap: anywhere; min-width: 0; }
 .shift-list { margin-top: 12px; }
 
 .run-group { border-bottom: 1px solid var(--line); }
