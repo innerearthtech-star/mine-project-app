@@ -4,7 +4,7 @@ import { $, $$, esc, on, toast, normalizePhone, closeSheet, closeModal, modalFor
 import { DB } from './db.js';
 import {
   S, loadAll, saveProfile, projectName, iAmRemoved, activeUsers, resumeAs,
-  checkUserPin, setUserPin, canISeeVideos, amIApproved, canIGrant, pendingUsers,
+  checkUserPin, setUserPin, canISeeVideos, amIApproved, canIGrant, pendingUsers, canUseJob,
 } from './store.js';
 import { initSync, syncState, kick } from './sync.js';
 import { initMap, refreshMapSize } from './map.js';
@@ -234,7 +234,7 @@ function startApp() {
   showTab('map');
   renderContacts();
   renderSettings();
-  if (S.owner) renderJob();
+  if (canUseJob()) renderJob();
   notifyNewJoins();
 }
 
@@ -264,11 +264,11 @@ function renderHeader() {
 }
 
 function updateTabs() {
-  $('#tab-job').style.display = S.owner ? '' : 'none';
+  $('#tab-job').style.display = canUseJob() ? '' : 'none';
   $('#tab-videos').style.display = canISeeVideos() ? '' : 'none';
-  if (!S.owner && currentTab === 'job') showTab('map');
+  if (!canUseJob() && currentTab === 'job') showTab('map');
   if (!canISeeVideos() && currentTab === 'videos') showTab('map');
-  if (S.owner) renderJob();
+  if (canUseJob()) renderJob();
   // red dot on Settings for people who can grant access, while anyone waits
   const dotEl = $('#settings-dot');
   if (dotEl) dotEl.hidden = !(canIGrant() && pendingUsers().length > 0);

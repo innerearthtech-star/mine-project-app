@@ -6,7 +6,7 @@ import {
 } from './util.js';
 import {
   S, findRow, save, softDelete, notesFor, newNote, newRun, addPhotoBlob, photoURL, videosFor,
-  canISeeVideos,
+  canISeeVideos, canUseJob,
 } from './store.js';
 import { kick } from './sync.js';
 import { videoCard, wireVideoCards } from './videos.js';
@@ -40,7 +40,7 @@ export async function openWell(id) {
       <a class="btn primary" id="w-gmaps" target="_blank" rel="noopener"
          href="${dirUrl}">${ic('nav')} Directions</a>
       <button class="btn" id="w-share">${ic('share')} Send</button>
-      ${S.owner ? `<button class="btn" id="w-run">${ic('bolt')} Log run</button>` : ''}
+      ${canUseJob() ? `<button class="btn" id="w-run">${ic('bolt')} Log run</button>` : ''}
     </div>
 
     <div class="well-data">

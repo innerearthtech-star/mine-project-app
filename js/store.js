@@ -88,7 +88,7 @@ export async function softDelete(table, row) {
 export async function mergeRemote(table, row) {
   if (!row) return;
   if (PRIVATE_TABLES.has(table)) {
-    if (!S.owner || row.owner_key !== S.ownerKey) return; // not my private data
+    if (!canUseJob() || row.owner_key !== myJobKey()) return; // not my private data
   }
   // unapproved devices only receive the roster (to detect approval) and
   // the project name — no job data lands on their phone at all
@@ -167,19 +167,19 @@ export function newVideo(boreholeId, ts, note, path, size, screenshots = []) {
 export function newRun(boreholeId, ts, note = '') {
   return save('runs', {
     id: uuid(), borehole_id: boreholeId, ts, note,
-    owner_key: S.ownerKey, created_at: nowISO(), deleted: false,
+    owner_key: myJobKey(), created_at: nowISO(), deleted: false,
   });
 }
 export function newShift(startTs) {
   return save('shifts', {
     id: uuid(), start_ts: startTs, end_ts: null,
-    owner_key: S.ownerKey, created_at: nowISO(), deleted: false,
+    owner_key: myJobKey(), created_at: nowISO(), deleted: false,
   });
 }
 export function newJob(nightStart) {
   return save('jobs', {
     id: uuid(), night_start: nightStart, night_end: null,
-    owner_key: S.ownerKey, created_at: nowISO(), deleted: false,
+    owner_key: myJobKey(), created_at: nowISO(), deleted: false,
   });
 }
 
@@ -285,6 +285,24 @@ export async function setUserGrantPermission(id, allowed) {
 export const pendingUsers = () =>
   S.users.filter(u => !u.deleted && !u.approved)
     .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+
+// ── Job tab: grantable, each person keeps their own private books ──
+// The owner's data stays under the owner-code key (unchanged); everyone
+// else's runs/hours/nights key to their own account id — so nobody sees
+// anyone else's numbers.
+export function myJobKey() {
+  if (S.owner) return S.ownerKey;
+  return S.profile ? `user:${S.profile.id}` : null;
+}
+export function canUseJob() {
+  if (S.owner) return true;
+  const me = S.profile && findRow('users', S.profile.id);
+  return Boolean(me && me.can_job && me.approved && !me.deleted);
+}
+export async function setUserJobPermission(id, allowed) {
+  const u = findRow('users', id);
+  if (u) await save('users', { ...u, can_job: Boolean(allowed), deleted: false });
+}
 
 // PIN helpers for the tap-your-name sign-in
 export const checkUserPin = async (u, pinTry) =>

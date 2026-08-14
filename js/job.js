@@ -6,19 +6,19 @@ import {
 } from './util.js';
 import {
   S, findRow, save, softDelete, activeBoreholes, activeRuns, activeShifts,
-  activeJobs, openShift, currentJob, newRun, newShift, newJob,
+  activeJobs, openShift, currentJob, newRun, newShift, newJob, canUseJob,
 } from './store.js';
 
 let clockTimer = null;
 
 export function initJob() {
   ['data:runs', 'data:shifts', 'data:jobs', 'data:boreholes', 'owner'].forEach(ev =>
-    on(ev, () => { if (S.owner) renderJob(); }));
+    on(ev, () => { if (canUseJob()) renderJob(); }));
 }
 
 export function renderJob() {
   const root = $('#view-job .tab-body');
-  if (!S.owner) { root.innerHTML = ''; return; }
+  if (!canUseJob()) { root.innerHTML = ''; return; }
 
   const runs = activeRuns();
   const shifts = activeShifts();

@@ -5,6 +5,7 @@ import { CONFIG } from './config.js';
 import {
   S, projectName, saveProfile, unlockOwner, lockOwner, activeUsers, removeUser, setUserPin,
   setUserVideoPermission, canIGrant, pendingUsers, setUserApproved, setUserGrantPermission,
+  setUserJobPermission,
 } from './store.js';
 import { syncState, kick } from './sync.js';
 
@@ -37,6 +38,8 @@ function crewRow(u) {
           title="Base access: map, wells, notes, contacts">Access</button>
         <button class="btn small perm ${u.can_videos ? 'perm-on' : ''}" data-vidtoggle="${u.id}"
           title="Let them see inspection videos">Videos</button>
+        <button class="btn small perm ${u.can_job ? 'perm-on' : ''}" data-jobtoggle="${u.id}"
+          title="Give them their own private Job tab (their runs/hours only)">Job</button>
         ${S.owner ? `<button class="btn small perm ${u.can_grant ? 'perm-on' : ''}" data-granttoggle="${u.id}"
           title="Let them approve people and grant access/videos">Can grant</button>` : ''}
         ${S.owner && u.pin ? `<button class="btn small ghost" data-resetpin="${u.id}" title="Clear their PIN so they can set a new one">Reset PIN</button>` : ''}
@@ -220,6 +223,14 @@ export function renderSettings() {
     if (!u) return;
     await setUserVideoPermission(u.id, !u.can_videos);
     toast(u.can_videos ? `${u.name} can no longer see videos` : `${u.name} can now see inspection videos`, 'ok');
+  });
+
+  // granters: give someone their own private Job tab
+  $$('[data-jobtoggle]').forEach(btn => btn.onclick = async () => {
+    const u = activeUsers().find(x => x.id === btn.dataset.jobtoggle);
+    if (!u) return;
+    await setUserJobPermission(u.id, !u.can_job);
+    toast(u.can_job ? `${u.name}'s Job tab was turned off` : `${u.name} now has their own Job tab`, 'ok');
   });
 
   // owner only: deputize someone to approve/grant for others

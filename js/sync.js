@@ -4,7 +4,7 @@
 
 import { CONFIG } from './config.js';
 import { DB } from './db.js';
-import { S, SYNCED_TABLES, PRIVATE_TABLES, mergeRemote, amIApproved } from './store.js';
+import { S, SYNCED_TABLES, PRIVATE_TABLES, mergeRemote, amIApproved, canUseJob, myJobKey } from './store.js';
 import { emit, on } from './util.js';
 
 let client = null;
@@ -160,11 +160,11 @@ async function pullAll() {
     // waiting-room devices only fetch the roster + project name
     if (!amIApproved() && table !== 'users' && table !== 'app_settings') continue;
     const isPrivate = PRIVATE_TABLES.has(table);
-    if (isPrivate && (!S.owner || !S.ownerKey)) continue;
+    if (isPrivate && (!canUseJob() || !myJobKey())) continue;
     const pk = table === 'app_settings' ? 'key' : 'id';
     for (let from = 0; ; from += PAGE) {
       let q = client.from(table).select('*').order(pk).range(from, from + PAGE - 1);
-      if (isPrivate) q = q.eq('owner_key', S.ownerKey);
+      if (isPrivate) q = q.eq('owner_key', myJobKey());
       const { data, error } = await q;
       if (error) throw new Error(`pull ${table}: ${error.message}`);
       for (const row of data) await mergeRemote(table, row);
