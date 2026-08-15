@@ -404,6 +404,11 @@ main { flex: 1; position: relative; min-height: 0; }
 .past-jobs { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 4px; }
 .expense-total { border-top: 1.5px solid var(--line); }
 .expense-total .row-strong { color: var(--accent); }
+.auto-tag {
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px;
+  background: var(--card-2); color: var(--muted); border: 1px solid var(--line);
+  padding: 1px 7px; border-radius: 999px;
+}
 
 .empty-hint { color: var(--muted); font-size: 14px; padding: 10px 2px; }
 

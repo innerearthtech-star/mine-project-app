@@ -23,5 +23,8 @@ export const CONFIG = {
   // Shown until a mine/project name is set in Settings.
   DEFAULT_PROJECT_NAME: 'Mine',
 
+  // Night stays bill automatically into Expenses at this rate.
+  NIGHT_RATE: 115,
+
   APP_VERSION: '1.0.0',
 };

@@ -4,6 +4,7 @@ import {
   $, $$, esc, on, toast, confirmDlg, modalForm, fmtDate, fmtTime, fmtDur,
   toLocalInput, daysBetween, ymd, download,
 } from './util.js';
+import { CONFIG } from './config.js';
 import {
   S, findRow, save, softDelete, activeBoreholes, activeRuns, activeShifts,
   activeJobs, openShift, currentJob, newRun, newShift, newJob, canUseJob,
@@ -83,7 +84,7 @@ export function renderJob() {
     <section class="card">
       <div class="card-head"><h4>Expenses</h4>
         <button class="btn small primary" id="btn-add-expense">+ Add</button></div>
-      ${renderExpenses()}
+      ${renderExpenses(nights.count)}
     </section>
 
     <section class="card">
@@ -96,11 +97,21 @@ export function renderJob() {
   startClock(open);
 }
 
-function renderExpenses() {
+function renderExpenses(nightsCount = 0) {
   const list = activeExpenses();
-  if (!list.length) return `<div class="empty-hint">Nothing yet — fuel, supplies, whatever you need to bill back.</div>`;
-  const total = list.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const nightsAmount = nightsCount * CONFIG.NIGHT_RATE;
+  if (!list.length && !nightsCount) {
+    return `<div class="empty-hint">Nothing yet — fuel, supplies, whatever you need to bill back.
+    Night stays add themselves at ${fmtMoney(CONFIG.NIGHT_RATE)}/night.</div>`;
+  }
+  const total = list.reduce((s, x) => s + (Number(x.amount) || 0), 0) + nightsAmount;
   return `
+    ${nightsCount ? `
+    <div class="row static">
+      <span class="auto-tag">auto</span>
+      <span class="row-mid">Night stays — ${nightsCount} × ${fmtMoney(CONFIG.NIGHT_RATE)}</span>
+      <span class="row-strong">${fmtMoney(nightsAmount)}</span>
+    </div>` : ''}
     ${list.map(x => `
       <button class="row" data-expense="${x.id}">
         <span>${fmtDate(x.ts + 'T12:00')}</span>
@@ -370,8 +381,13 @@ function exportCSV() {
   for (const x of exps) {
     lines.push(row(fmtDate(x.ts + 'T12:00'), x.label, (Number(x.amount) || 0).toFixed(2)));
   }
-  if (exps.length) {
-    lines.push(row('', 'TOTAL', exps.reduce((s, x) => s + (Number(x.amount) || 0), 0).toFixed(2)));
+  const nightsTotal = nightsInfo(currentJob()).count;
+  if (nightsTotal) {
+    lines.push(row('', `Night stays — ${nightsTotal} x ${CONFIG.NIGHT_RATE.toFixed(2)}`, (nightsTotal * CONFIG.NIGHT_RATE).toFixed(2)));
+  }
+  if (exps.length || nightsTotal) {
+    const grand = exps.reduce((s, x) => s + (Number(x.amount) || 0), 0) + nightsTotal * CONFIG.NIGHT_RATE;
+    lines.push(row('', 'TOTAL', grand.toFixed(2)));
   }
   lines.push('');
   lines.push('NIGHT STAYS');
