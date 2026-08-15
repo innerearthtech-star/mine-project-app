@@ -156,13 +156,25 @@ create table if not exists jobs (
   deleted boolean default false
 );
 
+-- Private: job expenses (what it was for + cost)
+create table if not exists expenses (
+  id uuid primary key,
+  label text not null,
+  amount numeric not null,
+  ts date not null,
+  owner_key text not null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  deleted boolean default false
+);
+
 -- ── Open access policies ───────────────────────────────────────────
 -- The app is shared by link with no logins, so the anon key can read
 -- and write. Do not reuse this Supabase project for anything else.
 do $$
 declare t text;
 begin
-  foreach t in array array['boreholes','notes','contacts','app_settings','users','runs','shifts','jobs','videos','invites']
+  foreach t in array array['boreholes','notes','contacts','app_settings','users','runs','shifts','jobs','expenses','videos','invites']
   loop
     execute format('alter table %I enable row level security', t);
     execute format('drop policy if exists "open access" on %I', t);
@@ -186,7 +198,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['boreholes','notes','contacts','app_settings','users','runs','shifts','jobs','videos','invites']
+  foreach t in array array['boreholes','notes','contacts','app_settings','users','runs','shifts','jobs','expenses','videos','invites']
   loop
     execute format('drop trigger if exists lww on %I', t);
     execute format('create trigger lww before update on %I for each row execute function lww_guard()', t);
@@ -197,7 +209,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['boreholes','notes','contacts','app_settings','users','runs','shifts','jobs','videos','invites']
+  foreach t in array array['boreholes','notes','contacts','app_settings','users','runs','shifts','jobs','expenses','videos','invites']
   loop
     begin
       execute format('alter publication supabase_realtime add table %I', t);

@@ -7,14 +7,17 @@ import {
 import {
   S, findRow, save, softDelete, activeBoreholes, activeRuns, activeShifts,
   activeJobs, openShift, currentJob, newRun, newShift, newJob, canUseJob,
+  activeExpenses, newExpense,
 } from './store.js';
 
 let clockTimer = null;
 
 export function initJob() {
-  ['data:runs', 'data:shifts', 'data:jobs', 'data:boreholes', 'owner'].forEach(ev =>
+  ['data:runs', 'data:shifts', 'data:jobs', 'data:expenses', 'data:boreholes', 'owner'].forEach(ev =>
     on(ev, () => { if (canUseJob()) renderJob(); }));
 }
+
+const fmtMoney = n => `$${(Number(n) || 0).toFixed(2)}`;
 
 export function renderJob() {
   const root = $('#view-job .tab-body');
@@ -78,6 +81,12 @@ export function renderJob() {
     </section>
 
     <section class="card">
+      <div class="card-head"><h4>Expenses</h4>
+        <button class="btn small primary" id="btn-add-expense">+ Add</button></div>
+      ${renderExpenses()}
+    </section>
+
+    <section class="card">
       <h4>Export</h4>
       <button class="btn big" id="btn-export">Download job summary (CSV)</button>
     </section>
@@ -85,6 +94,21 @@ export function renderJob() {
 
   wireJob(root, { open, job });
   startClock(open);
+}
+
+function renderExpenses() {
+  const list = activeExpenses();
+  if (!list.length) return `<div class="empty-hint">Nothing yet — fuel, supplies, whatever you need to bill back.</div>`;
+  const total = list.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  return `
+    ${list.map(x => `
+      <button class="row" data-expense="${x.id}">
+        <span>${fmtDate(x.ts + 'T12:00')}</span>
+        <span class="row-mid">${esc(x.label)}</span>
+        <span class="row-strong">${fmtMoney(x.amount)}</span>
+      </button>`).join('')}
+    <div class="row static expense-total"><span></span><span class="row-mid">Total</span>
+      <span class="row-strong">${fmtMoney(total)}</span></div>`;
 }
 
 function nightsInfo(job) {
@@ -231,6 +255,51 @@ function wireJob(root, { open, job }) {
     toast(`Job finished — ${daysBetween(j.night_start + 'T12:00', res.date + 'T12:00')} nights total`, 'ok');
   };
 
+  $('#btn-add-expense', root).onclick = async () => {
+    const res = await modalForm({
+      title: 'Add expense',
+      fields: [
+        { name: 'label', label: 'What for', placeholder: 'e.g. fuel, supplies', required: true },
+        { name: 'amount', label: 'Cost ($)', type: 'number', inputmode: 'decimal', placeholder: '0.00', required: true },
+        { name: 'date', label: 'Date', type: 'date', value: ymd(new Date()), required: true },
+      ],
+      okText: 'Add',
+    });
+    if (!res) return;
+    const amount = parseFloat(res.amount);
+    if (!res.label.trim()) { toast('Say what it was for', 'warn'); return; }
+    if (!Number.isFinite(amount) || amount <= 0) { toast('Enter the cost as a number', 'warn'); return; }
+    if (!validDate(res.date + 'T12:00')) { toast('Pick a valid date', 'warn'); return; }
+    await newExpense(res.label.trim(), amount, res.date);
+    toast(`${fmtMoney(amount)} — ${res.label.trim()}`, 'ok');
+  };
+
+  $$('[data-expense]', root).forEach(el => el.onclick = async () => {
+    const x = findRow('expenses', el.dataset.expense);
+    const res = await modalForm({
+      title: 'Edit expense',
+      fields: [
+        { name: 'label', label: 'What for', value: x.label, required: true },
+        { name: 'amount', label: 'Cost ($)', type: 'number', inputmode: 'decimal', value: x.amount, required: true },
+        { name: 'date', label: 'Date', type: 'date', value: x.ts, required: true },
+      ],
+      deleteText: 'Delete expense',
+    });
+    if (!res) return;
+    if (res._delete) {
+      if (await confirmDlg('Remove this expense?', { okText: 'Delete', danger: true })) {
+        await softDelete('expenses', x);
+        toast('Expense removed', 'ok');
+      }
+      return;
+    }
+    const amount = parseFloat(res.amount);
+    if (!res.label.trim() || !Number.isFinite(amount) || amount <= 0 || !validDate(res.date + 'T12:00')) {
+      toast('Check the fields — cost must be a number', 'warn'); return;
+    }
+    await save('expenses', { ...x, label: res.label.trim(), amount, ts: res.date });
+  });
+
   $('#btn-export', root).onclick = exportCSV;
 }
 
@@ -293,6 +362,16 @@ function exportCSV() {
   for (const s of activeShifts().slice().reverse()) {
     const dur = s.end_ts ? ((new Date(s.end_ts) - new Date(s.start_ts)) / 3600000).toFixed(2) : '';
     lines.push(row(fmtDate(s.start_ts), fmtTime(s.start_ts), s.end_ts ? fmtTime(s.end_ts) : '', dur));
+  }
+  lines.push('');
+  lines.push('EXPENSES');
+  lines.push(row('Date', 'What for', 'Cost'));
+  const exps = activeExpenses().slice().reverse();
+  for (const x of exps) {
+    lines.push(row(fmtDate(x.ts + 'T12:00'), x.label, (Number(x.amount) || 0).toFixed(2)));
+  }
+  if (exps.length) {
+    lines.push(row('', 'TOTAL', exps.reduce((s, x) => s + (Number(x.amount) || 0), 0).toFixed(2)));
   }
   lines.push('');
   lines.push('NIGHT STAYS');

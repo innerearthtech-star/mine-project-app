@@ -402,6 +402,8 @@ main { flex: 1; position: relative; min-height: 0; }
   padding: 2px 9px; border-radius: 999px;
 }
 .past-jobs { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 4px; }
+.expense-total { border-top: 1.5px solid var(--line); }
+.expense-total .row-strong { color: var(--accent); }
 
 .empty-hint { color: var(--muted); font-size: 14px; padding: 10px 2px; }
 

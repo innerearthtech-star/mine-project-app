@@ -19,14 +19,15 @@ export const S = {
   runs: [],
   shifts: [],
   jobs: [],
+  expenses: [],
   settings: [],       // rows: {key, value, updated_at}
 };
 
 // Tables whose rows are private to the owner (runs / hours / night stays)
-export const PRIVATE_TABLES = new Set(['runs', 'shifts', 'jobs']);
+export const PRIVATE_TABLES = new Set(['runs', 'shifts', 'jobs', 'expenses']);
 // Local store name for each synced table (Supabase table 'app_settings' ⇔ local 'settings')
 const LOCAL_STORE = t => (t === 'app_settings' ? 'settings' : t);
-export const SYNCED_TABLES = ['boreholes', 'notes', 'contacts', 'videos', 'users', 'invites', 'runs', 'shifts', 'jobs', 'app_settings'];
+export const SYNCED_TABLES = ['boreholes', 'notes', 'contacts', 'videos', 'users', 'invites', 'runs', 'shifts', 'jobs', 'expenses', 'app_settings'];
 
 export async function loadAll() {
   S.profile = (await DB.kvGet('profile')) || null;
@@ -41,6 +42,7 @@ export async function loadAll() {
   S.runs = await DB.all('runs');
   S.shifts = await DB.all('shifts');
   S.jobs = await DB.all('jobs');
+  S.expenses = await DB.all('expenses');
   S.settings = await DB.all('settings');
 }
 
@@ -126,6 +128,8 @@ export const activeJobs = () =>
   S.jobs.filter(j => !j.deleted).sort((a, b) => String(b.night_start).localeCompare(String(a.night_start)));
 export const openShift = () => activeShifts().find(s => !s.end_ts);
 export const currentJob = () => activeJobs().find(j => !j.night_end);
+export const activeExpenses = () =>
+  S.expenses.filter(x => !x.deleted).sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
 
 export function getSetting(key) {
   const r = S.settings.find(s => s.key === key && !s.deleted);
@@ -181,6 +185,12 @@ export function newShift(startTs) {
 export function newJob(nightStart) {
   return save('jobs', {
     id: uuid(), night_start: nightStart, night_end: null,
+    owner_key: myJobKey(), created_at: nowISO(), deleted: false,
+  });
+}
+export function newExpense(label, amount, ts) {
+  return save('expenses', {
+    id: uuid(), label, amount, ts,
     owner_key: myJobKey(), created_at: nowISO(), deleted: false,
   });
 }
