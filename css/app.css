@@ -484,9 +484,10 @@ main { flex: 1; position: relative; min-height: 0; }
 .video-card {
   background: var(--card); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 13px 14px; margin-bottom: 10px;
-  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  display: flex; flex-direction: column; align-items: stretch; gap: 9px;
 }
-.video-info { flex: 1; min-width: 0; }
+.video-info { min-width: 0; }
+.video-actions .icon-btn { margin-left: auto; }
 .video-well { font-size: 15px; font-weight: 700; color: var(--accent); }
 .video-meta { font-size: 13px; color: var(--muted); }
 .video-note { font-size: 14px; margin: 2px 0; }

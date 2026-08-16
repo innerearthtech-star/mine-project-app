@@ -297,6 +297,7 @@ function wireControls() {
   $('#btn-locate').onclick = () => {
     if (myPos) {
       map.flyTo([myPos.lat, myPos.lng], Math.max(map.getZoom(), 16), { duration: 0.7 });
+      warnIfCoarse();
     } else {
       toast('Waiting for GPS… make sure location is allowed', 'warn');
       startGPS();
@@ -323,7 +324,7 @@ function wireControls() {
 
   $('#placing-gps').onclick = () => {
     if (!placing) return;
-    if (myPos) map.setView([myPos.lat, myPos.lng], Math.max(map.getZoom(), 18));
+    if (myPos) { map.setView([myPos.lat, myPos.lng], Math.max(map.getZoom(), 18)); warnIfCoarse(); }
     else { toast('Waiting for GPS… make sure location is allowed', 'warn'); startGPS(); }
   };
 
@@ -396,6 +397,14 @@ function wireControls() {
 
 // LeaseSight-style placement: pin fixed center-screen, map drags under it.
 // startLatLng (optional) centers the map there first.
+// Computers have no GPS — the browser guesses from WiFi/IP and can be
+// miles off. Say so instead of letting the blue dot lie quietly.
+function warnIfCoarse() {
+  if (myPos && myPos.accuracy > 2000) {
+    toast(`Location is approximate on this device (±${fmtDist(myPos.accuracy)}) — use your phone in the field`, 'warn');
+  }
+}
+
 export function armPlacing(cb, msg, startLatLng) {
   stopPlacing(); // reset any earlier attempt
   placing = cb;

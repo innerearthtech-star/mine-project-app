@@ -426,7 +426,7 @@ export function videoCard(v, wellNameStr) {
     <div class="video-card" data-vid="${v.id}">
       <div class="video-info">
         <div class="video-well">${esc(wellNameStr)}</div>
-        <div class="video-meta">${fmtDate(v.ts)} · ${fmtTime(v.ts)}${v.size ? ` · ${fmtBytes(v.size)}` : ''}</div>
+        <div class="video-meta">${fmtDate(v.ts)} · ${fmtTime(v.ts)}</div>
         ${v.note ? `<div class="video-note">${esc(v.note)}</div>` : ''}
         <div class="video-meta muted">Uploaded by ${esc(v.uploaded_by || '?')}</div>
       </div>
