@@ -22,6 +22,7 @@ export async function openWell(id) {
   if (seq !== openSeq) return; // a newer openWell superseded this one
 
   const pending = []; // composer photo attachments: {path, blob, url}
+  const isWell = (b.kind || 'well') === 'well'; // landmarks skip well-only sections
   // one Directions button that opens the right maps app for the device
   const dirUrl = isIOS()
     ? `https://maps.apple.com/?daddr=${b.lat},${b.lng}&dirflg=d`
@@ -41,16 +42,17 @@ export async function openWell(id) {
       <a class="btn primary" id="w-gmaps" target="_blank" rel="noopener"
          href="${dirUrl}">${ic('nav')} Directions</a>
       <button class="btn" id="w-share">${ic('share')} Send</button>
-      ${canUseJob() ? `<button class="btn" id="w-run">${ic('bolt')} Log run</button>` : ''}
+      ${isWell && canUseJob() ? `<button class="btn" id="w-run">${ic('bolt')} Log run</button>` : ''}
     </div>
 
+    ${isWell ? `
     <div class="well-data">
       <div class="well-data-head"><h4>Well data</h4>
         <button class="btn small ghost" id="w-depths">${ic('pencil')} Edit</button></div>
       <div class="depth-row"><span>Roof level</span><b>${b.roof_level ? esc(fmtFt(b.roof_level)) : '—'}</b></div>
       <div class="depth-row"><span>Bottom of casing</span><b>${b.casing_bottom ? esc(fmtFt(b.casing_bottom)) : '—'}</b></div>
       <div class="depth-row"><span>Mine floor</span><b>${b.mine_floor ? esc(fmtFt(b.mine_floor)) : '—'}</b></div>
-    </div>
+    </div>` : ''}
 
     <div class="well-photo-block">
       ${surfaceURL
@@ -63,7 +65,7 @@ export async function openWell(id) {
 
     <div class="well-tools">
       <button class="btn small ghost" id="w-move">${ic('move')} Move pin</button>
-      ${S.owner ? `<button class="btn small ${b.seals_set ? 'primary' : 'ghost'}" id="w-seals">${ic('check')} Seals set</button>` : ''}
+      ${isWell && S.owner ? `<button class="btn small ${b.seals_set ? 'primary' : 'ghost'}" id="w-seals">${ic('check')} Seals set</button>` : ''}
       ${S.owner ? `<button class="btn small danger-ghost" id="w-delete">${ic('trash')} Delete</button>` : ''}
     </div>
 
@@ -94,7 +96,7 @@ export async function openWell(id) {
   const renderWellVideos = () => {
     const wrap = $('#w-videos-block', el);
     if (!wrap) return;
-    if (!canISeeVideos()) { wrap.innerHTML = ''; return; } // owner-granted only
+    if (!isWell || !canISeeVideos()) { wrap.innerHTML = ''; return; } // wells + granted only
     const vids = videosFor(id);
     wrap.innerHTML = vids.length ? `
       <h4 class="notes-title">Inspection videos <span class="count">${vids.length}</span></h4>
@@ -120,8 +122,9 @@ export async function openWell(id) {
     }
   };
 
-  // well data (depths)
-  $('#w-depths', el).onclick = async () => {
+  // well data (depths) — not rendered for landmarks
+  const depthsBtn = $('#w-depths', el);
+  if (depthsBtn) depthsBtn.onclick = async () => {
     const cur = findRow('boreholes', id);
     const res = await modalForm({
       title: 'Well data',
@@ -143,14 +146,20 @@ export async function openWell(id) {
     if (rows[2]) rows[2].textContent = mine_floor ? fmtFt(mine_floor) : '—';
   };
 
-  // rename
+  // rename / change type
   $('#w-rename', el).onclick = async () => {
     const res = await modalForm({
-      title: 'Rename borehole',
-      fields: [{ name: 'name', label: 'Name', value: b.name, required: true }],
+      title: 'Edit pin',
+      fields: [
+        { name: 'name', label: 'Name', value: b.name, required: true },
+        { name: 'kind', label: 'What is it?', type: 'select', value: b.kind || 'well', options: [
+          { value: 'well', label: 'Borehole' },
+          { value: 'place', label: 'Landmark (school, office, gate…)' },
+        ] },
+      ],
     });
     if (res && res.name.trim()) {
-      await save('boreholes', { ...findRow('boreholes', id), name: res.name.trim() });
+      await save('boreholes', { ...findRow('boreholes', id), name: res.name.trim(), kind: res.kind || 'well' });
       openWell(id);
     }
   };

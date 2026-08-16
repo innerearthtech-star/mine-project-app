@@ -1,4 +1,4 @@
-// ── Video inspections tab: resumable uploads + playback ────────────
+﻿// ── Video inspections tab: resumable uploads + playback ────────────
 // Files go straight to Supabase storage over TUS (resumable — a signal
 // drop pauses the upload instead of restarting a 10GB file). Only the
 // metadata row goes through the normal offline sync.
@@ -8,7 +8,7 @@ import {
   fmtDate, fmtTime, fmtDateTime, toLocalInput,
 } from './util.js';
 import { CONFIG } from './config.js';
-import { S, findRow, softDelete, activeBoreholes, activeVideos, newVideo, canISeeVideos, canIUpload } from './store.js';
+import { S, findRow, softDelete, activeWells, activeVideos, newVideo, canISeeVideos, canIUpload } from './store.js';
 import { isConfigured, getClient, kick } from './sync.js';
 
 let selectedWell = null;   // {id, name} chosen in the picker
@@ -90,7 +90,7 @@ export function renderVideosTab() {
         <div class="setting-hint">Uploads are resumable — if Starlink hiccups it picks up where
         it left off. Keep this page open until it finishes.</div>
     </section>` : `
-    <div class="setting-hint" style="margin-bottom:12px">📼 Search and watch inspection videos below.${isConfigured() ? ' Uploading is owner-only (unlock owner tools in Settings).' : ''}</div>`}
+    <div class="setting-hint" style="margin-bottom:12px">📼 Search and watch inspection videos below.${isConfigured() ? ' Uploading needs an Upload grant from the admin.' : ''}</div>`}
 
     <div class="contacts-top">
       <input id="video-search" type="search" placeholder="Search videos by well…" autocomplete="off">
@@ -119,9 +119,9 @@ function renderWellResults() {
   // full list again so they can switch; typing (which clears selectedWell)
   // then filters live.
   const showAll = selectedWell && input.value === selectedWell.name;
-  const wells = activeBoreholes().filter(b => showAll || !term || b.name.toLowerCase().includes(term));
+  const wells = activeWells().filter(b => showAll || !term || b.name.toLowerCase().includes(term));
   if (!wells.length) {
-    box.innerHTML = `<div class="empty-hint">${activeBoreholes().length
+    box.innerHTML = `<div class="empty-hint">${activeWells().length
       ? 'No well matches' : 'No wells yet — drop a pin on the map first'}</div>`;
     return;
   }

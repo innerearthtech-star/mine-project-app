@@ -162,7 +162,10 @@ export function modalForm({ title, fields, okText = 'Save', danger = false, dele
         ${fields.map(f => `
           <label class="field">
             <span>${esc(f.label)}</span>
-            ${f.type === 'textarea'
+            ${f.type === 'select'
+              ? `<select name="${esc(f.name)}">${(f.options || []).map(o =>
+                  `<option value="${esc(o.value)}" ${o.value === f.value ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`
+              : f.type === 'textarea'
               ? `<textarea name="${esc(f.name)}" placeholder="${esc(f.placeholder || '')}" rows="3">${esc(f.value || '')}</textarea>`
               : `<input name="${esc(f.name)}" type="${esc(f.type || 'text')}" value="${esc(f.value || '')}"
                    placeholder="${esc(f.placeholder || '')}" ${f.required ? 'required' : ''}

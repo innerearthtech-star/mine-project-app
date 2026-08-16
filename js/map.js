@@ -71,7 +71,26 @@ export function initMap() {
 export function refreshMapSize() { if (map) setTimeout(() => map.invalidateSize(), 50); }
 
 // ── Pins ───────────────────────────────────────────────────────────
+const isWellPin = b => (b.kind || 'well') === 'well';
+
 function pinIcon(b) {
+  // landmarks (school, office, gate…) = blue pin with a star
+  if (!isWellPin(b)) {
+    return L.divIcon({
+      className: 'pin-wrap',
+      iconSize: [30, 40],
+      iconAnchor: [15, 38],
+      html: `
+        <div class="pin">
+          <svg viewBox="0 0 30 40" width="30" height="40">
+            <path d="M15 1C7.8 1 2 6.9 2 14.2 2 24.5 15 38 15 38S28 24.5 28 14.2C28 6.9 22.2 1 15 1z"
+                  fill="#4da3ff" stroke="#00000055" stroke-width="1.5"/>
+            <path d="M15 8.5l1.8 3.7 4.1.6-3 2.9.7 4.1-3.6-1.9-3.6 1.9.7-4.1-3-2.9 4.1-.6z" fill="#0b0f14"/>
+          </svg>
+          <span class="pin-label">${esc(b.name)}</span>
+        </div>`,
+    });
+  }
   // seals set = gray pin with a check, so the whole crew can see at a
   // glance which holes are finished in the mine
   const body = b.seals_set
@@ -97,6 +116,13 @@ function pinIcon(b) {
 
 // Quick-look popup: name + key depths + a button into the full well
 function popupHTML(b) {
+  if (!isWellPin(b)) {
+    return `<div class="pin-pop">
+      <div class="pin-pop-name">${esc(b.name)}</div>
+      <div class="pin-pop-empty">Landmark</div>
+      <button class="pin-pop-open" data-open="${b.id}">Open ›</button>
+    </div>`;
+  }
   const row = (label, v) => v
     ? `<div class="pin-pop-row"><span>${label}</span><b>${esc(fmtFt(v))}</b></div>` : '';
   const rows = row('Roof level', b.roof_level)
@@ -110,7 +136,7 @@ function popupHTML(b) {
 }
 
 function markerSig(b) {
-  return `${b.name}|${b.lat}|${b.lng}|${b.seals_set ? 1 : 0}|${b.roof_level || ''}|${b.casing_bottom || ''}|${b.mine_floor || ''}`;
+  return `${b.name}|${b.kind || 'well'}|${b.lat}|${b.lng}|${b.seals_set ? 1 : 0}|${b.roof_level || ''}|${b.casing_bottom || ''}|${b.mine_floor || ''}`;
 }
 
 // (re)bind every "Open well" button in a popup (pad popups have several)
@@ -162,6 +188,9 @@ const CLUSTER_PX = 44;
 function groupWells(list) {
   // no view yet (first paint) → no pixel math possible; render singles
   if (!map || !map._loaded) return list.map(b => [b]);
+  // landmarks never merge into pads
+  const places = list.filter(b => !isWellPin(b)).map(b => [b]);
+  list = list.filter(isWellPin);
   const pts = list.map(b => ({ b, p: map.latLngToLayerPoint([b.lat, b.lng]) }));
   const groups = [];
   const used = new Set();
@@ -178,7 +207,7 @@ function groupWells(list) {
     }
     groups.push(g);
   }
-  return groups;
+  return [...groups, ...places];
 }
 
 const POPUP_OPTS = { className: 'pin-popup', offset: [0, -34], autoPanPadding: [24, 90] };
@@ -427,12 +456,18 @@ function stopPlacing() {
 
 async function createAt(latlng) {
   const res = await modalForm({
-    title: 'New borehole',
-    fields: [{ name: 'name', label: 'Borehole name', placeholder: 'e.g. BH-14', required: true }],
+    title: 'New pin',
+    fields: [
+      { name: 'kind', label: 'What is it?', type: 'select', value: 'well', options: [
+        { value: 'well', label: 'Borehole' },
+        { value: 'place', label: 'Landmark (school, office, gate…)' },
+      ] },
+      { name: 'name', label: 'Name', placeholder: 'e.g. BH-14 or School', required: true },
+    ],
     okText: 'Add pin',
   });
   if (!res || !res.name.trim()) return;
-  const b = await newBorehole(res.name.trim(), latlng.lat, latlng.lng);
+  const b = await newBorehole(res.name.trim(), latlng.lat, latlng.lng, res.kind || 'well');
   toast(`Added ${b.name}`, 'ok');
   flyToWell(b);
   openWell(b.id);

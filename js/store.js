@@ -107,6 +107,9 @@ export async function mergeRemote(table, row) {
 // ── Convenience accessors ──────────────────────────────────────────
 export const activeBoreholes = () =>
   S.boreholes.filter(b => !b.deleted).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+export const isWell = b => (b.kind || 'well') === 'well';
+// actual boreholes only — landmarks (school, office…) excluded
+export const activeWells = () => activeBoreholes().filter(isWell);
 export const notesFor = id =>
   S.notes.filter(n => n.borehole_id === id && !n.deleted)
     .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
@@ -139,9 +142,9 @@ export const setSetting = (key, value) => save('app_settings', { key, value });
 export const projectName = () => getSetting('project_name') || CONFIG.DEFAULT_PROJECT_NAME;
 
 // ── Entity creators ────────────────────────────────────────────────
-export async function newBorehole(name, lat, lng) {
+export async function newBorehole(name, lat, lng, kind = 'well') {
   const row = {
-    id: uuid(), name, lat, lng, photo: null,
+    id: uuid(), name, lat, lng, kind, photo: null,
     created_by: S.profile.name, author_id: S.profile.id,
     created_at: nowISO(), deleted: false,
   };

@@ -1,4 +1,4 @@
-// ── My Job tab (owner only): field hours, runs, night stays, export ─
+﻿// ── My Job tab (owner only): field hours, runs, night stays, export ─
 
 import {
   $, $$, esc, on, toast, confirmDlg, modalForm, fmtDate, fmtTime, fmtDur,
@@ -6,7 +6,7 @@ import {
 } from './util.js';
 import { CONFIG } from './config.js';
 import {
-  S, findRow, save, softDelete, activeBoreholes, activeRuns, activeShifts,
+  S, findRow, save, softDelete, activeWells, activeRuns, activeShifts,
   activeJobs, openShift, currentJob, newRun, newShift, newJob, canUseJob,
   activeExpenses, newExpense,
 } from './store.js';
@@ -206,7 +206,7 @@ function wireJob(root, { open, job }) {
   });
 
   $('#btn-add-run', root).onclick = async () => {
-    const wells = activeBoreholes();
+    const wells = activeWells();
     if (!wells.length) { toast('Add a borehole on the map first', 'warn'); return; }
     const res = await modalFormWithSelect(wells);
     if (!res) return;
