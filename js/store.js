@@ -20,6 +20,7 @@ export const S = {
   shifts: [],
   jobs: [],
   expenses: [],
+  drawings: [],       // owner's freehand map sketches (visible to everyone)
   settings: [],       // rows: {key, value, updated_at}
 };
 
@@ -27,7 +28,7 @@ export const S = {
 export const PRIVATE_TABLES = new Set(['runs', 'shifts', 'jobs', 'expenses']);
 // Local store name for each synced table (Supabase table 'app_settings' ⇔ local 'settings')
 const LOCAL_STORE = t => (t === 'app_settings' ? 'settings' : t);
-export const SYNCED_TABLES = ['boreholes', 'notes', 'contacts', 'videos', 'users', 'invites', 'runs', 'shifts', 'jobs', 'expenses', 'app_settings'];
+export const SYNCED_TABLES = ['boreholes', 'notes', 'contacts', 'videos', 'users', 'invites', 'runs', 'shifts', 'jobs', 'expenses', 'drawings', 'app_settings'];
 
 export async function loadAll() {
   S.profile = (await DB.kvGet('profile')) || null;
@@ -43,6 +44,7 @@ export async function loadAll() {
   S.shifts = await DB.all('shifts');
   S.jobs = await DB.all('jobs');
   S.expenses = await DB.all('expenses');
+  S.drawings = await DB.all('drawings');
   S.settings = await DB.all('settings');
 }
 
@@ -133,6 +135,14 @@ export const openShift = () => activeShifts().find(s => !s.end_ts);
 export const currentJob = () => activeJobs().find(j => !j.night_end);
 export const activeExpenses = () =>
   S.expenses.filter(x => !x.deleted).sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+// oldest first = draw order, so Undo peels off the newest stroke
+export const activeDrawings = () =>
+  S.drawings.filter(d => !d.deleted).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+
+// The owner's account — Admin tools unlocked, or simply his cell number
+// (so owner-only map controls show on his phone even before an unlock).
+export const isOwnerAccount = () =>
+  S.owner || Boolean(S.profile && S.profile.phone === CONFIG.OWNER_PHONE);
 
 export function getSetting(key) {
   const r = S.settings.find(s => s.key === key && !s.deleted);
@@ -190,6 +200,15 @@ export function newJob(nightStart) {
     id: uuid(), night_start: nightStart, night_end: null,
     owner_key: myJobKey(), created_at: nowISO(), deleted: false,
   });
+}
+export async function newDrawing(points, color, width = 4) {
+  const row = {
+    id: uuid(), points, color, width,
+    created_by: S.profile.name, author_id: S.profile.id,
+    created_at: nowISO(), deleted: false,
+  };
+  await save('drawings', row);
+  return row;
 }
 export function newExpense(label, amount, ts) {
   return save('expenses', {

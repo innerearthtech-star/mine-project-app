@@ -97,12 +97,16 @@ async function pushOutbox() {
       await DB.del('outbox', op.id);
       continue;
     }
+    const code = String(error.code || '');
+    // Table not created yet (the app updated before the owner ran the new
+    // SQL): keep the row for later without counting an attempt, and let
+    // the rest of the queue keep flowing.
+    if (code === '42P01' || code === 'PGRST205') continue;
     // Only definitive data errors (Postgres constraint/data/syntax classes,
     // PostgREST request + schema-cache errors like a missing column) count
     // toward the drop limit. Anything else — 5xx, rate limits, HTML error
     // pages, paused project, offline — is transient: stop and retry next
     // cycle so field data is never discarded.
-    const code = String(error.code || '');
     const isDataError = /^(22|23|42)\d{3}$/.test(code) || /^PGRST[12]\d\d$/.test(code);
     if (!isDataError) throw new Error(`push failed (will retry): ${error.message}`);
     op.attempts = (op.attempts || 0) + 1;
@@ -156,19 +160,32 @@ async function prunePhotoBlobs() {
 
 async function pullAll() {
   const PAGE = 1000; // PostgREST caps responses; page so nothing is missed
+  let firstErr = null;
   for (const table of SYNCED_TABLES) {
     // waiting-room devices only fetch the roster + project name
     if (!amIApproved() && table !== 'users' && table !== 'app_settings') continue;
     const isPrivate = PRIVATE_TABLES.has(table);
     if (isPrivate && (!canUseJob() || !myJobKey())) continue;
     const pk = table === 'app_settings' ? 'key' : 'id';
-    for (let from = 0; ; from += PAGE) {
-      let q = client.from(table).select('*').order(pk).range(from, from + PAGE - 1);
-      if (isPrivate) q = q.eq('owner_key', myJobKey());
-      const { data, error } = await q;
-      if (error) throw new Error(`pull ${table}: ${error.message}`);
-      for (const row of data) await mergeRemote(table, row);
-      if (data.length < PAGE) break;
+    try {
+      for (let from = 0; ; from += PAGE) {
+        let q = client.from(table).select('*').order(pk).range(from, from + PAGE - 1);
+        if (isPrivate) q = q.eq('owner_key', myJobKey());
+        const { data, error } = await q;
+        if (error) {
+          // table not created yet (app updated before its SQL ran) — not
+          // worth a red sync dot; it fills in once the schema runs
+          if (error.code === '42P01' || error.code === 'PGRST205') break;
+          throw new Error(`pull ${table}: ${error.message}`);
+        }
+        for (const row of data) await mergeRemote(table, row);
+        if (data.length < PAGE) break;
+      }
+    } catch (e) {
+      // one broken table must not stop the crew's pins/notes/roster
+      // from arriving — note it, keep pulling the rest
+      firstErr = firstErr || e;
     }
   }
+  if (firstErr) throw firstErr;
 }

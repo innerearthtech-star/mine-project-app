@@ -139,6 +139,12 @@
         </div>
 
         <div class="map-fabs">
+          <button class="fab" id="btn-draw" title="Draw on map" style="display:none">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+          </button>
+          <button class="fab" id="btn-layers" title="Switch imagery">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8.5l10 5.5 10-5.5z"/><path d="m2 14.5 10 5.5 10-5.5"/></svg>
+          </button>
           <button class="fab" id="btn-locate" title="My location">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
           </button>
@@ -147,8 +153,24 @@
           </button>
         </div>
 
+        <!-- draw mode toolbar (owner only) -->
+        <div id="draw-panel">
+          <div class="draw-row">
+            <div class="draw-colors">
+              <button class="draw-color on" data-color="#ffd23f" style="--c:#ffd23f" title="Yellow"></button>
+              <button class="draw-color" data-color="#ff5d5d" style="--c:#ff5d5d" title="Red"></button>
+              <button class="draw-color" data-color="#4da3ff" style="--c:#4da3ff" title="Blue"></button>
+              <button class="draw-color" data-color="#41d97e" style="--c:#41d97e" title="Green"></button>
+              <button class="draw-color" data-color="#ffffff" style="--c:#ffffff" title="White"></button>
+            </div>
+            <button class="btn small ghost" id="draw-undo">↩ Undo</button>
+            <button class="btn small primary" id="draw-done">✓ Done</button>
+          </div>
+          <div class="draw-hint">One finger draws · two fingers zoom the map · tap a line later to erase it</div>
+        </div>
+
         <button id="map-info" title="Map credits">i</button>
-        <div id="map-info-panel">Imagery © Esri, Maxar, Earthstar Geographics · Labels © Esri</div>
+        <div id="map-info-panel">Imagery © Esri, Maxar, Earthstar Geographics · Labels © Esri · USGS imagery courtesy of the U.S. Geological Survey</div>
       </div>
 
       <!-- VIDEOS -->

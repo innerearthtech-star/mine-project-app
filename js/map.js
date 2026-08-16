@@ -1,8 +1,8 @@
 // ── Map tab: Esri imagery, borehole pins, GPS, search, add-pin ─────
 
-import { $, $$, esc, on, toast, sheet, closeSheet, modalForm, haversineM, fmtDist, fmtFt, debounce } from './util.js';
+import { $, $$, esc, on, toast, sheet, closeSheet, modalForm, confirmDlg, haversineM, fmtDist, fmtFt, debounce } from './util.js';
 import { DB } from './db.js';
-import { S, activeBoreholes, newBorehole } from './store.js';
+import { S, activeBoreholes, newBorehole, activeDrawings, newDrawing, isOwnerAccount, softDelete } from './store.js';
 import { openWell } from './wells.js';
 
 let map = null;
@@ -13,6 +13,17 @@ let placing = null;          // callback armed for pin placement
 let watchId = null;
 
 const DEFAULT_VIEW = { center: [39.5, -98.35], zoom: 4 }; // continental US
+
+// ── Basemap sources (Esri = sharp, USGS = often newer) ─────────────
+const BASEMAPS = {};
+let baseKey = null;
+function setBasemap(key) {
+  if (!BASEMAPS[key] || baseKey === key) return;
+  if (baseKey) map.removeLayer(BASEMAPS[baseKey]);
+  baseKey = key;
+  BASEMAPS[key].addTo(map);
+  DB.kvSet('basemap', key);
+}
 
 export function initMap() {
   if (map) { setTimeout(() => map.invalidateSize(), 50); return; }
@@ -35,13 +46,21 @@ export function initMap() {
     // itself stays smooth; tiles fill in the moment you let go
     keepBuffer: 3, updateWhenZooming: false, updateWhenIdle: true,
   };
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', tileOpts).addTo(map);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', tileOpts).addTo(map);
+  // Two imagery sources (layers button flips them): Esri is the sharpest
+  // zoomed way in; USGS (NAIP flyovers) is often YEARS newer over rural
+  // ground but tops out at z16 native, so it goes soft up close.
+  BASEMAPS.esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { ...tileOpts, zIndex: 1 });
+  BASEMAPS.usgs = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}', { ...tileOpts, maxNativeZoom: 16, zIndex: 1 });
+  // zIndex keeps the place-name overlay above whichever base is active
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { ...tileOpts, zIndex: 2 }).addTo(map);
+  setBasemap('esri');
+  DB.kvGet('basemap').then(k => { if (k === 'usgs') setBasemap('usgs'); });
 
   DB.kvGet('mapView').then(v => {
     if (v) map.setView(v.center, v.zoom);
     else map.setView(DEFAULT_VIEW.center, DEFAULT_VIEW.zoom);
     renderMarkers(); // regroup now that pixel distances exist
+    renderDrawings(); // vector layers need a view before they can project
   });
   map.on('moveend', () => {
     const c = map.getCenter();
@@ -61,14 +80,20 @@ export function initMap() {
   renderMarkers();
   // debounced: a bulk sync merge fires one event per row — render once
   on('data:boreholes', debounce(renderMarkers, 150));
+  on('data:drawings', debounce(renderDrawings, 100));
   // pads split into individual pins once zoom separates them
   map.on('zoomend', debounce(renderMarkers, 80));
+  on('owner', () => { setDrawBtn(); renderDrawings(); });
+  on('profile', setDrawBtn);
   startGPS();
   wireControls();
+  setDrawBtn();
   setTimeout(() => map.invalidateSize(), 50);
 }
 
-export function refreshMapSize() { if (map) setTimeout(() => map.invalidateSize(), 50); }
+export function refreshMapSize() {
+  if (map) setTimeout(() => { map.invalidateSize(); declutterLabels(); }, 50);
+}
 
 // ── Pins ───────────────────────────────────────────────────────────
 const isWellPin = b => (b.kind || 'well') === 'well';
@@ -277,11 +302,166 @@ function renderMarkers() {
   for (const [key, m] of markers) {
     if (!seen.has(key)) { m.remove(); markers.delete(key); }
   }
+  declutterLabels();
+}
+
+// Zoomed out, dozens of labels pile into an unreadable heap — hide the
+// ones that would overlap and let them reappear as zoom spreads the pins
+// apart. The pin itself always shows; tapping it always names it.
+function declutterLabels() {
+  if (!map || !map._loaded) return;
+  // another tab is showing → the map is display:none and every label
+  // measures 0×0 at (0,0), which would "collide" them all into hiding.
+  // refreshMapSize re-runs this when the map tab comes back.
+  if (!map.getContainer().getBoundingClientRect().width) return;
+  const items = [];
+  for (const m of markers.values()) {
+    const el = m.getElement();
+    const label = el && el.querySelector('.pin-label');
+    if (label) items.push({ label, pad: Boolean(m._group), name: m._well ? m._well.name : '' });
+  }
+  // stable priority (pads first, then A→Z) so the same names win every
+  // time instead of flickering between renders
+  items.sort((a, b) => (b.pad - a.pad) || a.name.localeCompare(b.name, undefined, { numeric: true }));
+  const kept = [];
+  for (const it of items) {
+    // visibility:hidden keeps layout, so hidden labels still measure
+    const r = it.label.getBoundingClientRect();
+    const clash = kept.some(k =>
+      r.left < k.right + 3 && r.right > k.left - 3 &&
+      r.top < k.bottom + 2 && r.bottom > k.top - 2);
+    it.label.classList.toggle('label-off', clash);
+    if (!clash) kept.push(r);
+  }
 }
 
 export function flyToWell(b, zoom = 17) {
   if (!map) return;
   map.flyTo([b.lat, b.lng], Math.max(map.getZoom(), zoom), { duration: 0.8 });
+}
+
+// ── Freehand drawing (owner only) ──────────────────────────────────
+// One finger sketches a line straight onto the imagery; strokes sync to
+// every device like pins do. Only the owner's account gets the button
+// (and only he can erase — tap a line outside draw mode).
+let drawLayer = null;
+let drawMode = false;
+let drawColor = '#ffd23f';
+let stroke = null;          // in-progress line while the finger is down
+let sessionStrokes = [];    // ids drawn since entering draw mode (Undo order)
+
+function setDrawBtn() {
+  const btn = $('#btn-draw');
+  if (btn) btn.style.display = isOwnerAccount() ? '' : 'none';
+}
+
+function renderDrawings() {
+  if (!map || !map._loaded) return;
+  if (!drawLayer) drawLayer = L.layerGroup().addTo(map);
+  drawLayer.clearLayers();
+  for (const d of activeDrawings()) {
+    if (!Array.isArray(d.points) || d.points.length < 2) continue;
+    drawLayer.addLayer(L.polyline(d.points, {
+      color: d.color || '#ffd23f', weight: d.width || 4,
+      opacity: 0.95, interactive: false,
+    }));
+    if (isOwnerAccount()) {
+      // fat invisible twin = finger-sized tap target for erasing
+      const hit = L.polyline(d.points, { color: '#000', weight: 24, opacity: 0.001 });
+      hit.on('click', e => {
+        if (drawMode || placing) return;
+        L.DomEvent.stop(e);
+        confirmDlg('Erase this drawing?', { okText: 'Erase', danger: true, title: 'Erase drawing' })
+          .then(ok => { if (ok) softDelete('drawings', d); });
+      });
+      drawLayer.addLayer(hit);
+    }
+  }
+}
+
+function enterDraw() {
+  if (drawMode || !map) return;
+  stopPlacing();
+  map.closePopup();
+  drawMode = true;
+  sessionStrokes = [];
+  $('#view-map').classList.add('drawing');
+  map.dragging.disable();
+  const c = map.getContainer();
+  c.addEventListener('pointerdown', onDrawDown);
+  c.addEventListener('pointermove', onDrawMove);
+  // up/cancel on window: a finger lifted off the edge of the map still ends the stroke
+  window.addEventListener('pointerup', onDrawUp);
+  window.addEventListener('pointercancel', onDrawCancel);
+  c.addEventListener('touchstart', onDrawTouch, { passive: true });
+}
+
+function exitDraw() {
+  if (!drawMode) return;
+  drawMode = false;
+  if (stroke) { stroke.line.remove(); stroke = null; }
+  $('#view-map').classList.remove('drawing');
+  map.dragging.enable();
+  const c = map.getContainer();
+  c.removeEventListener('pointerdown', onDrawDown);
+  c.removeEventListener('pointermove', onDrawMove);
+  window.removeEventListener('pointerup', onDrawUp);
+  window.removeEventListener('pointercancel', onDrawCancel);
+  c.removeEventListener('touchstart', onDrawTouch);
+}
+
+function onDrawDown(e) {
+  if (!drawMode || stroke || e.button > 0) return;
+  const p = map.mouseEventToContainerPoint(e);
+  stroke = {
+    id: e.pointerId, px: p, pts: [map.containerPointToLatLng(p)],
+    line: L.polyline([], { color: drawColor, weight: 4, opacity: 0.95, interactive: false }).addTo(map),
+  };
+  e.preventDefault();
+}
+
+function onDrawMove(e) {
+  if (!stroke || e.pointerId !== stroke.id) return;
+  const p = map.mouseEventToContainerPoint(e);
+  if (p.distanceTo(stroke.px) < 3) return; // ~3px between points keeps strokes light
+  stroke.px = p;
+  stroke.pts.push(map.containerPointToLatLng(p));
+  stroke.line.setLatLngs(stroke.pts);
+  e.preventDefault();
+}
+
+async function onDrawUp(e) {
+  if (!stroke || e.pointerId !== stroke.id) return;
+  const s = stroke;
+  stroke = null;
+  s.line.remove();
+  if (s.pts.length < 2) return; // a tap, not a stroke
+  const pts = s.pts.map(ll => [+ll.lat.toFixed(6), +ll.lng.toFixed(6)]);
+  const d = await newDrawing(pts, drawColor);
+  sessionStrokes.push(d.id);
+  renderDrawings();
+}
+
+function onDrawCancel(e) {
+  if (stroke && e.pointerId === stroke.id) { stroke.line.remove(); stroke = null; }
+}
+
+// second finger = pinch-zoom, not a line — drop the half-drawn stroke
+function onDrawTouch(e) {
+  if (e.touches.length > 1 && stroke) { stroke.line.remove(); stroke = null; }
+}
+
+async function undoDrawing() {
+  // only this session's strokes — a stray Undo tap must never silently
+  // eat a line sketched days ago (tap the line itself to erase those)
+  let d = null;
+  while (sessionStrokes.length && !d) {
+    const id = sessionStrokes.pop();
+    d = activeDrawings().find(x => x.id === id) || null;
+  }
+  if (!d) { toast('Nothing new to undo — tap a line to erase it', 'warn'); return; }
+  await softDelete('drawings', d);
+  renderDrawings();
 }
 
 // ── GPS ────────────────────────────────────────────────────────────
@@ -422,6 +602,31 @@ function wireControls() {
   }
 
   $('#placing-cancel').onclick = stopPlacing;
+
+  // Imagery source flip (everyone): Esri detail ↔ USGS recency
+  $('#btn-layers').onclick = () => {
+    const next = baseKey === 'usgs' ? 'esri' : 'usgs';
+    setBasemap(next);
+    toast(next === 'usgs'
+      ? 'USGS imagery — usually a newer flyover, but softer zoomed way in'
+      : 'Esri imagery — sharpest close-up detail', 'ok');
+  };
+
+  // Draw mode (owner only — the button stays hidden for everyone else)
+  $('#btn-draw').onclick = enterDraw;
+  $('#draw-done').onclick = exitDraw;
+  // leaving the Map tab ends draw mode (discarding any half stroke) so
+  // the map never sits hidden with dragging off and listeners live
+  $$('.tab-btn').forEach(b => {
+    if (b.dataset.tab !== 'map') b.addEventListener('click', exitDraw);
+  });
+  $('#draw-undo').onclick = undoDrawing;
+  $$('.draw-color').forEach(b => {
+    b.onclick = () => {
+      drawColor = b.dataset.color;
+      $$('.draw-color').forEach(x => x.classList.toggle('on', x === b));
+    };
+  });
 }
 
 // LeaseSight-style placement: pin fixed center-screen, map drags under it.

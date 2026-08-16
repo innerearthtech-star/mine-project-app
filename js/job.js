@@ -45,6 +45,11 @@ export function renderJob() {
     </div>
 
     <section class="card">
+      <h4>Day log</h4>
+      ${renderDayLog()}
+    </section>
+
+    <section class="card">
       <h4>Field hours</h4>
       ${open ? `
         <div class="clock-live">In the field since <b>${fmtTime(open.start_ts)}</b> — <b id="live-dur">${fmtDur(Date.now() - new Date(open.start_ts))}</b></div>
@@ -120,6 +125,44 @@ function renderExpenses(nightsCount = 0) {
       </button>`).join('')}
     <div class="row static expense-total"><span></span><span class="row-mid">Total</span>
       <span class="row-strong">${fmtMoney(total)}</span></div>`;
+}
+
+// Day 1 = the day AFTER the first night stay; every calendar day since
+// steps the count up by one, with that day's field hours and runs.
+function dayLogData() {
+  const jobs = activeJobs();
+  if (!jobs.length) return null;
+  const first = jobs[jobs.length - 1].night_start; // earliest stay (list is newest-first)
+  const dayN = daysBetween(first + 'T12:00', new Date());
+  if (dayN < 1) return { dayN: 0, days: [] };
+  const shifts = activeShifts().filter(s => s.end_ts);
+  const runs = activeRuns();
+  const days = [];
+  for (let i = 1; i <= Math.min(dayN, 180); i++) {
+    const d = new Date(first + 'T12:00');
+    d.setDate(d.getDate() + i);
+    const key = ymd(d);
+    const ms = shifts.filter(s => ymd(new Date(s.start_ts)) === key)
+      .reduce((sum, s) => sum + (new Date(s.end_ts) - new Date(s.start_ts)), 0);
+    const nRuns = runs.filter(r => ymd(new Date(r.ts)) === key).length;
+    days.push({ n: i, key, ms, nRuns });
+  }
+  return { dayN, days };
+}
+
+function renderDayLog() {
+  const log = dayLogData();
+  if (!log) {
+    return `<div class="empty-hint">Days start counting the day after your first night stay —
+      start night stays below and this fills in on its own.</div>`;
+  }
+  if (!log.dayN) return `<div class="empty-hint">Night 1 is tonight — Day 1 starts tomorrow.</div>`;
+  return [...log.days].reverse().map(d => `
+    <div class="row static${d.n === log.dayN ? ' day-today' : ''}">
+      <span class="row-strong">Day ${d.n}</span>
+      <span class="row-mid">${fmtDate(d.key + 'T12:00')}</span>
+      <span>${d.ms ? fmtDur(d.ms) : '—'}${d.nRuns ? ` · ${d.nRuns} run${d.nRuns > 1 ? 's' : ''}` : ''}</span>
+    </div>`).join('');
 }
 
 function nightsInfo(job) {
@@ -373,6 +416,15 @@ function exportCSV() {
   for (const s of activeShifts().slice().reverse()) {
     const dur = s.end_ts ? ((new Date(s.end_ts) - new Date(s.start_ts)) / 3600000).toFixed(2) : '';
     lines.push(row(fmtDate(s.start_ts), fmtTime(s.start_ts), s.end_ts ? fmtTime(s.end_ts) : '', dur));
+  }
+  const log = dayLogData();
+  if (log && log.dayN) {
+    lines.push('');
+    lines.push('DAY LOG');
+    lines.push(row('Day', 'Date', 'Field hours', 'Runs'));
+    for (const d of log.days) {
+      lines.push(row(`Day ${d.n}`, fmtDate(d.key + 'T12:00'), d.ms ? (d.ms / 3600000).toFixed(2) : '', d.nRuns || ''));
+    }
   }
   lines.push('');
   lines.push('EXPENSES');

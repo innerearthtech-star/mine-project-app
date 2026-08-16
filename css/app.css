@@ -199,7 +199,11 @@ main { flex: 1; position: relative; min-height: 0; }
   font-size: 11px; font-weight: 700; color: #fff;
   text-shadow: 0 1px 3px #000, 0 0 6px #000;
   background: #0b0f14b8; padding: 1px 7px; border-radius: 8px;
+  transition: opacity .18s;
 }
+/* would overlap a neighbor at this zoom — hidden (not display:none, so
+   it still measures for the collision pass) until zoom separates them */
+.pin-label.label-off { visibility: hidden; opacity: 0; }
 .me-wrap { background: none; border: none; }
 .me-dot {
   width: 16px; height: 16px; border-radius: 50%;
@@ -298,6 +302,41 @@ main { flex: 1; position: relative; min-height: 0; }
 #view-map.placing .map-fabs,
 #view-map.placing #map-info,
 #view-map.placing #map-info-panel { display: none; }
+
+/* ── Draw mode (owner only) ─────────────────────────────────────── */
+#view-map.drawing #search-panel,
+#view-map.drawing .map-fabs,
+#view-map.drawing #map-info,
+#view-map.drawing #map-info-panel { display: none; }
+/* touch-action:none is load-bearing: with dragging disabled Leaflet
+   leaves pan-x/pan-y on the container, and iOS would claim one-finger
+   strokes as native pans and kill them with pointercancel */
+#view-map.drawing #map { cursor: crosshair; touch-action: none; }
+/* pins and lines don't swallow taps while sketching over them */
+#view-map.drawing .leaflet-marker-pane,
+#view-map.drawing .leaflet-overlay-pane { pointer-events: none; }
+
+#draw-panel {
+  position: absolute; left: 10px; right: 10px;
+  bottom: 8px; z-index: 17;
+  display: none;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 12px 14px;
+  box-shadow: 0 8px 28px #000b;
+}
+#view-map.drawing #draw-panel { display: block; }
+.draw-row { display: flex; align-items: center; gap: 8px; }
+.draw-colors { display: flex; gap: 7px; margin-right: auto; }
+.draw-color {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--c); border: 2px solid #0006; cursor: pointer;
+  flex: none; padding: 0;
+}
+.draw-color.on { border-color: #fff; box-shadow: 0 0 0 2px #000c; transform: scale(1.12); }
+.draw-hint { color: var(--muted); font-size: 11px; margin-top: 8px; }
+
+/* Day log: today's row pops */
+.day-today .row-strong { color: var(--accent); }
 
 /* Map info "i" — keeps the Esri credit off the map until tapped */
 #map-info {

@@ -2,7 +2,7 @@
 // (offline-first: writes land here immediately, sync.js pushes later)
 
 const DB_NAME = 'coalmine-app';
-const DB_VER = 5; // v2: videos · v3: users · v4: invites · v5: expenses
+const DB_VER = 6; // v2: videos · v3: users · v4: invites · v5: expenses · v6: drawings
 let dbp = null;
 
 function open() {
@@ -25,6 +25,7 @@ function open() {
       mk('shifts', 'id');
       mk('jobs', 'id');
       mk('expenses', 'id');     // private job expenses
+      mk('drawings', 'id');     // owner's freehand map sketches
       mk('settings', 'key');     // shared app settings (project name, …)
       mk('outbox', 'id');        // pending writes waiting for signal
       mk('photos', 'path');      // {path, blob, uploaded}

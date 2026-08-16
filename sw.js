@@ -5,7 +5,7 @@
 // - Uploaded photos cached after first view
 // - Supabase API calls always go to the network (sync.js queues offline)
 
-const VERSION = 'v39';
+const VERSION = 'v40';
 const SHELL_CACHE = `shell-${VERSION}`;
 const TILE_CACHE = 'tiles-v1';
 const PHOTO_CACHE = 'photos-v1';
@@ -94,8 +94,8 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Esri tiles — cache as you browse
-  if (url.hostname === 'server.arcgisonline.com') {
+  // Map tiles (Esri + USGS) — cache as you browse
+  if (url.hostname === 'server.arcgisonline.com' || url.hostname === 'basemap.nationalmap.gov') {
     e.respondWith(
       cacheFirst(TILE_CACHE, e.request, TILE_MAX).catch(() => new Response('', { status: 404 }))
     );
