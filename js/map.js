@@ -85,6 +85,12 @@ export function initMap() {
   map.on('zoomend', debounce(renderMarkers, 80));
   on('owner', () => { setDrawBtn(); renderDrawings(); });
   on('profile', setDrawBtn);
+  // another tab asks the map to show a well (small delay lets the tab
+  // switch + invalidateSize settle before the flyTo)
+  on('map:show-well', id => {
+    const b = activeBoreholes().find(x => x.id === id);
+    if (b) setTimeout(() => revealWell(b), 120);
+  });
   startGPS();
   wireControls();
   setDrawBtn();
@@ -340,6 +346,23 @@ export function flyToWell(b, zoom = 17) {
   map.flyTo([b.lat, b.lng], Math.max(map.getZoom(), zoom), { duration: 0.8 });
 }
 
+// Fly to a well and pop its quick-look card — used by search results and
+// the "map:show-well" event (e.g. the Map button on a video card).
+// timeout (not 'moveend') so it still opens when the map is already
+// centered on that well and flyTo is a no-op.
+function revealWell(b) {
+  if (!map) return;
+  flyToWell(b);
+  setTimeout(() => {
+    // the well may be merged into a pad pin at this zoom
+    const m = markers.get(b.id) ||
+      [...markers.entries()].find(([k]) => k.startsWith('pad:') && k.includes(b.id))?.[1];
+    if (!m) return;
+    if (m._group) openPadList(m); // show the list so they can pick it
+    else openSinglePopup(m);
+  }, 850);
+}
+
 // ── Freehand drawing (owner only) ──────────────────────────────────
 // One finger sketches a line straight onto the imagery; strokes sync to
 // every device like pins do. Only the owner's account gets the button
@@ -571,20 +594,7 @@ function wireControls() {
       el.onclick = () => {
         const b = activeBoreholes().find(x => x.id === el.dataset.id);
         hideSearch();
-        if (b) {
-          // fly there and show the quick-look popup (not the full sheet).
-          // timeout (not 'moveend') so it still opens when the map is
-          // already centered on that well and flyTo is a no-op.
-          flyToWell(b);
-          setTimeout(() => {
-            // the well may be merged into a pad pin at this zoom
-            const m = markers.get(b.id) ||
-              [...markers.entries()].find(([k]) => k.startsWith('pad:') && k.includes(b.id))?.[1];
-            if (!m) return;
-            if (m._group) openPadList(m); // show the list so they can pick it
-            else openSinglePopup(m);
-          }, 850);
-        }
+        if (b) revealWell(b);
       };
     });
   };

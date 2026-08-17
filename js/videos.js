@@ -4,8 +4,8 @@
 // metadata row goes through the normal offline sync.
 
 import {
-  $, $$, esc, on, toast, confirmDlg, uuid, debounce, viewPhotos, compressImage,
-  fmtDate, fmtTime, fmtDateTime, toLocalInput,
+  $, $$, esc, on, emit, toast, confirmDlg, uuid, debounce, viewPhotos, compressImage,
+  fmtDate, fmtTime, fmtDateTime, toLocalInput, closeSheet,
 } from './util.js';
 import { CONFIG } from './config.js';
 import { S, findRow, softDelete, activeWells, activeVideos, newVideo, canISeeVideos, canIUpload } from './store.js';
@@ -436,6 +436,7 @@ export function videoCard(v, wellNameStr) {
           : `<a class="btn small primary" href="${esc(videoURL(v.path))}?download" target="_blank"
                rel="noopener" title="This format plays after downloading">⬇ Download video</a>`) : ''}
         ${shots.length ? `<button class="btn small" data-shots="${v.id}">🖼 Screenshots (${shots.length})</button>` : ''}
+        <button class="btn small" data-mapwell="${v.borehole_id}" title="Show this well on the map">⌖ Map</button>
         ${S.owner ? `<button class="icon-btn tiny danger-ghost" data-vdel="${v.id}" title="Delete">${trashIcon}</button>` : ''}
       </div>
       <div class="video-player" data-player="${v.id}" hidden></div>
@@ -468,6 +469,16 @@ export function wireVideoCards(scope, onDelete) {
     const wrap = $('#video-list');
     if (wrap && wrap.contains(holder)) renderVideoList();
   };
+
+  // jump to this inspection's well on the map (works from the Videos
+  // tab and from a video card inside a well sheet)
+  $$('[data-mapwell]', scope).forEach(btn => btn.onclick = () => {
+    const b = findRow('boreholes', btn.dataset.mapwell);
+    if (!b || b.deleted) { toast('That borehole is no longer on the map', 'warn'); return; }
+    closeSheet();
+    $('.tab-btn[data-tab="map"]')?.click();
+    emit('map:show-well', b.id);
+  });
 
   $$('[data-play]', scope).forEach(btn => btn.onclick = () => {
     const v = findRow('videos', btn.dataset.play);
