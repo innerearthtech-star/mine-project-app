@@ -4,11 +4,11 @@
 // metadata row goes through the normal offline sync.
 
 import {
-  $, $$, esc, on, emit, toast, confirmDlg, uuid, debounce, viewPhotos, compressImage,
+  $, $$, esc, on, emit, toast, confirmDlg, modalForm, uuid, debounce, viewPhotos, compressImage,
   fmtDate, fmtTime, fmtDateTime, toLocalInput, closeSheet,
 } from './util.js';
 import { CONFIG } from './config.js';
-import { S, findRow, softDelete, activeWells, activeVideos, newVideo, canISeeVideos, canIUpload } from './store.js';
+import { S, findRow, save, softDelete, activeWells, activeVideos, newVideo, canISeeVideos, canIUpload } from './store.js';
 import { isConfigured, getClient, kick } from './sync.js';
 
 let selectedWell = null;   // {id, name} chosen in the picker
@@ -437,6 +437,8 @@ export function videoCard(v, wellNameStr) {
                rel="noopener" title="This format plays after downloading">⬇ Download video</a>`) : ''}
         ${shots.length ? `<button class="btn small" data-shots="${v.id}">🖼 Screenshots (${shots.length})</button>` : ''}
         <button class="btn small" data-mapwell="${v.borehole_id}" title="Show this well on the map">⌖ Map</button>
+        ${S.owner || (S.profile && v.author_id === S.profile.id)
+          ? `<button class="icon-btn tiny" data-vedit="${v.id}" title="Edit (fix the well, date, note)">${pencilIcon}</button>` : ''}
         ${S.owner ? `<button class="icon-btn tiny danger-ghost" data-vdel="${v.id}" title="Delete">${trashIcon}</button>` : ''}
       </div>
       <div class="video-player" data-player="${v.id}" hidden></div>
@@ -452,6 +454,7 @@ const shotName = s => (typeof s === 'string' ? '' : (s.name || ''));
 // nobody needs to see ".png" — show the name without the extension
 const prettyName = n => (n || '').replace(/\.[a-z0-9]{2,5}$/i, '');
 const trashIcon = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>`;
+const pencilIcon = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>`;
 
 export function wireVideoCards(scope, onDelete) {
   const collapse = () => {
@@ -514,6 +517,35 @@ export function wireVideoCards(scope, onDelete) {
       im.onclick = () => viewPhotos(urls, idx, names));
     holder.hidden = false;
     btn.textContent = '✕ Close screenshots';
+  });
+
+  // fix a wrong well pick (plus date/note) after the fact — owner, or
+  // whoever uploaded it
+  $$('[data-vedit]', scope).forEach(btn => btn.onclick = async () => {
+    const v = findRow('videos', btn.dataset.vedit);
+    if (!v) return;
+    const wells = activeWells();
+    // keep the current pick selectable even if it's been deleted or
+    // flipped to a landmark, so opening + saving unchanged is a no-op
+    if (!wells.some(w => w.id === v.borehole_id)) {
+      const cur = findRow('boreholes', v.borehole_id);
+      wells.unshift({ id: v.borehole_id, name: cur ? cur.name : 'Unknown well' });
+    }
+    const res = await modalForm({
+      title: 'Edit inspection',
+      fields: [
+        { name: 'well', label: 'Borehole', type: 'select', value: v.borehole_id,
+          options: wells.map(w => ({ value: w.id, label: w.name })) },
+        { name: 'ts', label: 'Date & time', type: 'datetime-local', value: toLocalInput(v.ts) },
+        { name: 'note', label: 'Note (optional)', value: v.note || '' },
+      ],
+    });
+    if (!res) return;
+    if (!res.well || isNaN(new Date(res.ts))) { toast('Enter a valid date & time', 'warn'); return; }
+    await save('videos', { ...v, borehole_id: res.well, ts: new Date(res.ts).toISOString(), note: res.note || '' });
+    toast('Inspection updated', 'ok');
+    renderVideoList(true);
+    if (onDelete) onDelete(); // same refresh hook the sheet uses
   });
 
   $$('[data-vdel]', scope).forEach(btn => btn.onclick = async () => {
