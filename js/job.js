@@ -296,6 +296,14 @@ function wireJob(root, { open, job }) {
 
   const finishBtn = $('#btn-finish-job', root);
   if (finishBtn) finishBtn.onclick = async () => {
+    // a stray tap here once wiped the running count — make it a real question
+    const j0 = currentJob();
+    if (!j0) { toast('This job is already finished', 'warn'); return; }
+    const ok = await confirmDlg(
+      `You're on night ${nightsInfo(j0).active}, counting since ${fmtDate(j0.night_start + 'T12:00')}. `
+      + `Stop the count? Only finish when the job is wrapped up.`,
+      { okText: 'Yes — finish the job', danger: true, title: 'Finish night stays?' });
+    if (!ok) return;
     const res = await modalForm({
       title: 'Finish job',
       fields: [{ name: 'date', label: 'Check-out morning', type: 'date', value: ymd(new Date()), required: true }],
