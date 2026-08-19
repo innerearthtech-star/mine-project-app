@@ -683,8 +683,18 @@ function wireControls() {
   };
 
   // Map info ("i") — keeps the Esri credit off the map until tapped
+  // (key and info share the anchor spot above the "i", so opening one
+  // closes the other)
   const infoBtn = $('#map-info');
-  if (infoBtn) infoBtn.onclick = () => $('#map-info-panel').classList.toggle('open');
+  if (infoBtn) infoBtn.onclick = () => {
+    $('#map-key-panel').classList.remove('open');
+    $('#map-info-panel').classList.toggle('open');
+  };
+  const keyBtn = $('#map-key');
+  if (keyBtn) keyBtn.onclick = () => {
+    $('#map-info-panel').classList.remove('open');
+    $('#map-key-panel').classList.toggle('open');
+  };
 
   // Search — opens the full well list on focus, filters as you type
   const input = $('#search-input');

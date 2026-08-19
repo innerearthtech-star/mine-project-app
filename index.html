@@ -182,6 +182,21 @@
           <button class="btn small primary" id="roadrec-save">■ Save road</button>
         </div>
 
+        <button id="map-key" title="Map key">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h.01M4 12h.01M4 18h.01M9 6h11M9 12h11M9 18h11"/></svg>
+        </button>
+        <div id="map-key-panel">
+          <div class="key-row"><svg viewBox="0 0 30 40" width="14" height="18"><path d="M15 1C7.8 1 2 6.9 2 14.2 2 24.5 15 38 15 38S28 24.5 28 14.2C28 6.9 22.2 1 15 1z" fill="#f5a524"/><circle cx="15" cy="14" r="5.5" fill="#0b0f14"/></svg>Borehole</div>
+          <div class="key-row"><svg viewBox="0 0 30 40" width="14" height="18"><path d="M15 1C7.8 1 2 6.9 2 14.2 2 24.5 15 38 15 38S28 24.5 28 14.2C28 6.9 22.2 1 15 1z" fill="#35d073"/><circle cx="15" cy="14" r="5.5" fill="#0b0f14"/></svg>Clear</div>
+          <div class="key-row"><svg viewBox="0 0 30 40" width="14" height="18"><path d="M15 1C7.8 1 2 6.9 2 14.2 2 24.5 15 38 15 38S28 24.5 28 14.2C28 6.9 22.2 1 15 1z" fill="#ffe14d"/><circle cx="15" cy="14" r="5.5" fill="#0b0f14"/></svg>Partially obstructed</div>
+          <div class="key-row"><svg viewBox="0 0 30 40" width="14" height="18"><path d="M15 1C7.8 1 2 6.9 2 14.2 2 24.5 15 38 15 38S28 24.5 28 14.2C28 6.9 22.2 1 15 1z" fill="#ff5252"/><circle cx="15" cy="14" r="5.5" fill="#0b0f14"/></svg>Obstructed</div>
+          <div class="key-row"><svg viewBox="0 0 30 40" width="14" height="18"><path d="M15 1C7.8 1 2 6.9 2 14.2 2 24.5 15 38 15 38S28 24.5 28 14.2C28 6.9 22.2 1 15 1z" fill="#8b98a5"/><circle cx="15" cy="14" r="6" fill="#0b0f14"/><path d="M11.5 14.2l2.4 2.4 4.6-4.8" fill="none" stroke="#8ff0b4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Seals set (✓ on any color)</div>
+          <div class="key-row"><svg viewBox="0 0 30 40" width="14" height="18"><path d="M15 1C7.8 1 2 6.9 2 14.2 2 24.5 15 38 15 38S28 24.5 28 14.2C28 6.9 22.2 1 15 1z" fill="#f5a524"/><circle cx="15" cy="14" r="7.5" fill="#0b0f14"/><text x="15" y="18" text-anchor="middle" fill="#f5a524" font-size="11" font-weight="800" font-family="sans-serif">3</text></svg>Several wells on one pad</div>
+          <div class="key-row"><svg viewBox="0 0 30 40" width="14" height="18"><path d="M15 1C7.8 1 2 6.9 2 14.2 2 24.5 15 38 15 38S28 24.5 28 14.2C28 6.9 22.2 1 15 1z" fill="#4da3ff"/><path d="M15 8.5l1.8 3.7 4.1.6-3 2.9.7 4.1-3.6-1.9-3.6 1.9.7-4.1-3-2.9 4.1-.6z" fill="#0b0f14"/></svg>Landmark (school, gate…)</div>
+          <div class="key-row"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M2 18c5-9 9 3 20-12" fill="none" stroke="#ffd23f" stroke-width="3" stroke-linecap="round"/></svg>Marked road / line</div>
+          <div class="key-row"><svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="6" fill="#2f81f7" stroke="#fff" stroke-width="2.5"/></svg>Your location</div>
+        </div>
+
         <button id="map-info" title="Map credits">i</button>
         <div id="map-info-panel">Imagery © Esri, Maxar, Earthstar Geographics · Labels © Esri · USGS imagery courtesy of the U.S. Geological Survey</div>
       </div>

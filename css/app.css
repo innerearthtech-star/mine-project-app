@@ -387,6 +387,29 @@ main { flex: 1; position: relative; min-height: 0; }
 .find-hero input::placeholder { color: var(--muted); }
 #show-signup { width: 100%; margin-top: 14px; }
 
+/* Map key — expandable legend just above the "i" */
+#map-key {
+  position: absolute; left: 12px; bottom: calc(48px + var(--safe-bot)); z-index: 15;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: #0b0f14b0; color: var(--muted); border: 1px solid var(--line);
+  cursor: pointer; backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+}
+#map-key svg { width: 14px; height: 14px; }
+#map-key-panel {
+  position: absolute; left: 12px; bottom: calc(82px + var(--safe-bot)); z-index: 15;
+  display: none; background: #0b0f14e0; border: 1px solid var(--line);
+  border-radius: 12px; padding: 9px 13px; box-shadow: 0 4px 16px #0009;
+}
+#map-key-panel.open { display: block; }
+.key-row {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12px; color: var(--text); padding: 3px 0; white-space: nowrap;
+}
+.key-row svg { flex: none; }
+#view-map.placing #map-key, #view-map.placing #map-key-panel,
+#view-map.drawing #map-key, #view-map.drawing #map-key-panel { display: none; }
+
 /* Map info "i" — keeps the Esri credit off the map until tapped */
 #map-info {
   position: absolute; left: 12px; bottom: calc(14px + var(--safe-bot)); z-index: 15;
@@ -396,7 +419,7 @@ main { flex: 1; position: relative; min-height: 0; }
   cursor: pointer; backdrop-filter: blur(4px);
 }
 #map-info-panel {
-  position: absolute; left: 12px; bottom: calc(46px + var(--safe-bot)); z-index: 15;
+  position: absolute; left: 12px; bottom: calc(82px + var(--safe-bot)); z-index: 15;
   max-width: 78vw; display: none;
   background: #0b0f14e0; color: var(--muted); border: 1px solid var(--line);
   border-radius: 10px; padding: 8px 11px; font-size: 11px; line-height: 1.4;
