@@ -404,9 +404,20 @@ main { flex: 1; position: relative; min-height: 0; }
 .rep-name { font-weight: 700; }
 .rep-foot { color: #8a94a0; font-size: 11px; margin-top: 18px; }
 
+@page { margin: 12mm; }
 @media print {
+  /* the app pins body in place (position:fixed, overflow:hidden) to stop
+     rubber-band scrolling — printed like that, iOS clips everything past
+     the first screenful. Unpin the whole chain so the report flows. */
+  html, body {
+    position: static !important; inset: auto !important;
+    overflow: visible !important; height: auto !important;
+  }
   body > *:not(#report-view) { display: none !important; }
-  #report-view { position: static; background: #fff; overflow: visible; }
+  #report-view {
+    position: static !important; inset: auto !important;
+    background: #fff; overflow: visible !important;
+  }
   .rep-actions { display: none; }
   .rep-page { box-shadow: none; border-radius: 0; max-width: none; margin: 0; padding: 0; }
   .rep-table tbody tr { break-inside: avoid; }
