@@ -8,6 +8,7 @@ import {
   setUserJobPermission, setUserUploadPermission, activeWells,
 } from './store.js';
 import { syncState, kick } from './sync.js';
+import { openWellReport } from './report.js';
 
 export function initSettings() {
   on('sync', renderSettings);
@@ -102,9 +103,10 @@ export function renderSettings() {
 
     <section class="card">
       <h4>Well data export</h4>
-      <div class="setting-hint">Every borehole with its depths — roof level, bottom of casing,
-      mine floor — plus status and location. Opens in Excel; send it to anyone.</div>
-      <button class="btn small primary" id="s-wells-csv">⬇ Download well data (CSV)</button>
+      <div class="setting-hint">A clean report page with every borehole's depths and status —
+      ready to print, save as PDF, or hand to anyone. The CSV is the same data raw, for Excel.</div>
+      <button class="btn small primary" id="s-wells-report">📄 Well report</button>
+      <button class="btn small" id="s-wells-csv">⬇ CSV for Excel</button>
     </section>
 
     ${(S.owner || (S.profile.phone === CONFIG.OWNER_PHONE)) ? `
@@ -134,6 +136,8 @@ export function renderSettings() {
       <span class="muted">Built by Inner Earth Tech 😏</span></div>
     </section>
   `;
+
+  $('#s-wells-report').onclick = () => openWellReport();
 
   // Well data CSV — depths for every borehole, ready to hand to anyone
   $('#s-wells-csv').onclick = () => {

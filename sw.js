@@ -5,7 +5,7 @@
 // - Uploaded photos cached after first view
 // - Supabase API calls always go to the network (sync.js queues offline)
 
-const VERSION = 'v50';
+const VERSION = 'v51';
 const SHELL_CACHE = `shell-${VERSION}`;
 const TILE_CACHE = 'tiles-v1';
 const PHOTO_CACHE = 'photos-v1';
@@ -29,6 +29,7 @@ const SHELL = [
   './js/contacts.js',
   './js/settings.js',
   './js/videos.js',
+  './js/report.js',
   './libs/leaflet/leaflet.js',
   './libs/leaflet/leaflet.css',
   './libs/supabase.js',

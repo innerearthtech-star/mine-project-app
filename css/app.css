@@ -369,6 +369,49 @@ main { flex: 1; position: relative; min-height: 0; }
 .status-on-partial { background: #d9b616; border-color: #d9b616; color: #141005; }
 .well-tools { flex-wrap: wrap; }
 
+/* ── Well report: white print-ready page ────────────────────────── */
+#report-view {
+  position: fixed; inset: 0; z-index: 140; overflow: auto;
+  background: #f4f5f7; color: #17202a;
+  -webkit-overflow-scrolling: touch;
+}
+.rep-actions {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; gap: 8px; align-items: center;
+  padding: calc(10px + var(--safe-top, 0px)) 12px 10px;
+  background: #17202a;
+}
+.rep-actions-spacer { margin-right: auto; }
+.rep-page {
+  max-width: 780px; margin: 18px auto 40px; background: #fff;
+  border-radius: 10px; padding: 26px 28px;
+  box-shadow: 0 6px 24px #0002;
+}
+.rep-head {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  border-bottom: 3px solid #f5a524; padding-bottom: 12px; margin-bottom: 6px;
+}
+.rep-title { font-size: 21px; font-weight: 800; }
+.rep-sub { color: #5c6773; font-size: 13px; margin-top: 3px; }
+.rep-brand { font-weight: 800; color: #b7791f; font-size: 13px; white-space: nowrap; padding-top: 4px; }
+.rep-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+.rep-table th {
+  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+  color: #5c6773; padding: 8px 10px; border-bottom: 2px solid #d7dce2;
+}
+.rep-table td { padding: 8px 10px; border-bottom: 1px solid #e8ebef; }
+.rep-table tbody tr:nth-child(even) { background: #f7f9fb; }
+.rep-name { font-weight: 700; }
+.rep-foot { color: #8a94a0; font-size: 11px; margin-top: 18px; }
+
+@media print {
+  body > *:not(#report-view) { display: none !important; }
+  #report-view { position: static; background: #fff; overflow: visible; }
+  .rep-actions { display: none; }
+  .rep-page { box-shadow: none; border-radius: 0; max-width: none; margin: 0; padding: 0; }
+  .rep-table tbody tr { break-inside: avoid; }
+}
+
 /* Welcome: the returning-user path is the hero */
 .find-head { font-size: 16px; margin: 2px 0 8px; }
 .find-head b { color: var(--accent); }
