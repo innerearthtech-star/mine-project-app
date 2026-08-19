@@ -173,7 +173,7 @@ function markerSig(b) {
   return `${b.name}|${b.kind || 'well'}|${b.lat}|${b.lng}|${b.seals_set ? 1 : 0}|${b.status || ''}|${b.roof_level || ''}|${b.casing_bottom || ''}|${b.mine_floor || ''}`;
 }
 const statusTag = b => (b.status
-  ? ` <span class="status-tag ${b.status}">● ${b.status}</span>` : '');
+  ? ` <span class="status-tag ${b.status}">● ${b.status === 'partial' ? 'partially obstructed' : b.status}</span>` : '');
 
 // (re)bind every "Open well" button in a popup (pad popups have several)
 function wirePopupBtn(popup) {

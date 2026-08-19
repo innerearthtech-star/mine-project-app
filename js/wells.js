@@ -13,6 +13,9 @@ import { videoCard, wireVideoCards } from './videos.js';
 
 let openSeq = 0; // last-tapped well wins if two sheets race to open
 
+// stored value stays 'partial'; people see the full words
+const statusLabel = s => (s === 'partial' ? 'partially obstructed' : s || '');
+
 export async function openWell(id) {
   const seq = ++openSeq;
   const b = findRow('boreholes', id);
@@ -30,7 +33,7 @@ export async function openWell(id) {
   const el = sheet(`
     <div class="well-head">
       <div class="well-head-main">
-        <h3 class="well-name">${esc(b.name)}<span id="w-seals-badge" class="seals-tag" ${b.seals_set ? '' : 'hidden'}>✓ seals set</span><span id="w-status-badge" class="status-tag ${b.status || ''}" ${b.status ? '' : 'hidden'}>● ${b.status || ''}</span>
+        <h3 class="well-name">${esc(b.name)}<span id="w-seals-badge" class="seals-tag" ${b.seals_set ? '' : 'hidden'}>✓ seals set</span><span id="w-status-badge" class="status-tag ${b.status || ''}" ${b.status ? '' : 'hidden'}>● ${statusLabel(b.status)}</span>
           <button class="icon-btn" id="w-rename" title="Rename">${ic('pencil')}</button></h3>
         <div class="well-meta">Added by ${esc(b.created_by || '?')} · ${fmtDateTime(b.created_at)}</div>
         <div class="well-meta mono">${b.lat.toFixed(6)}, ${b.lng.toFixed(6)}</div>
@@ -67,7 +70,7 @@ export async function openWell(id) {
       <button class="btn small ghost" id="w-move">${ic('move')} Move pin</button>
       ${isWell && S.owner ? `<button class="btn small ${b.seals_set ? 'primary' : 'ghost'}" id="w-seals">${ic('check')} Seals set</button>
       <button class="btn small ${b.status === 'clear' ? 'status-on-clear' : 'ghost'}" id="w-clear">● Clear</button>
-      <button class="btn small ${b.status === 'partial' ? 'status-on-partial' : 'ghost'}" id="w-partial" title="Partially obstructed">● Partial</button>
+      <button class="btn small ${b.status === 'partial' ? 'status-on-partial' : 'ghost'}" id="w-partial">● Partially obstructed</button>
       <button class="btn small ${b.status === 'obstructed' ? 'status-on-obst' : 'ghost'}" id="w-obst">● Obstructed</button>` : ''}
       ${S.owner ? `<button class="btn small danger-ghost" id="w-delete">${ic('trash')} Delete</button>` : ''}
     </div>
@@ -234,9 +237,9 @@ export async function openWell(id) {
     pBtn.classList.toggle('ghost', val !== 'partial');
     const badge = $('#w-status-badge', el);
     badge.hidden = !val;
-    badge.textContent = `● ${val || ''}`;
+    badge.textContent = `● ${statusLabel(val)}`;
     badge.className = `status-tag ${val || ''}`;
-    toast(val ? `${cur.name}: ${val}` : `${cur.name}: status off`, 'ok');
+    toast(val ? `${cur.name}: ${statusLabel(val)}` : `${cur.name}: status off`, 'ok');
   };
   const clearBtn = $('#w-clear', el);
   if (clearBtn) clearBtn.onclick = () => setStatus('clear');
