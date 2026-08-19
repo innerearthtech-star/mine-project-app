@@ -367,6 +367,24 @@ main { flex: 1; position: relative; min-height: 0; }
 .status-on-obst { background: #c0392b; border-color: #c0392b; color: #fff; }
 .well-tools { flex-wrap: wrap; }
 
+/* Welcome: the returning-user path is the hero */
+.find-head { font-size: 16px; margin: 2px 0 8px; }
+.find-head b { color: var(--accent); }
+.find-hero {
+  display: flex; align-items: center; gap: 10px;
+  background: #0f1720; border: 2px solid var(--accent);
+  border-radius: 14px; padding: 2px 14px;
+  box-shadow: 0 0 0 4px #f5a52422, 0 6px 20px #0007;
+}
+.find-hero .ic { width: 20px; height: 20px; color: var(--accent); flex: none; }
+.find-hero input {
+  flex: 1; min-width: 0; background: none; border: none; outline: none;
+  color: var(--text); font-size: 17px; /* ≥16px: iOS won't zoom the page */
+  padding: 13px 0;
+}
+.find-hero input::placeholder { color: var(--muted); }
+#show-signup { width: 100%; margin-top: 14px; }
+
 /* Map info "i" — keeps the Esri credit off the map until tapped */
 #map-info {
   position: absolute; left: 12px; bottom: calc(14px + var(--safe-bot)); z-index: 15;

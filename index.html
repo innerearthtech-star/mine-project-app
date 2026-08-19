@@ -38,12 +38,15 @@
       <!-- tap your name, or create an account (no code — new accounts
            wait for approval and see nothing until granted) -->
       <div id="welcome-main">
-        <div class="wl-form-head">Already signed up? Find your name</div>
-        <label class="wl">
-          <input id="w-find" type="search" placeholder="Start typing your name…" autocomplete="off">
-        </label>
+        <div class="find-head">Been here before? <b>Find your name</b></div>
+        <div class="find-hero">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="w-find" type="search" placeholder="Type your first or last name…" autocomplete="off">
+        </div>
         <div id="welcome-resume"></div>
-        <div class="wl-form-head" id="new-here-head">New here? Create your account</div>
+        <button class="btn big ghost" id="show-signup">New here? Create your account</button>
+        <div id="signup-wrap" hidden>
+        <div class="wl-form-head" id="new-here-head">Create your account</div>
         <form id="welcome-form">
           <div class="welcome-row">
             <label class="wl">First name
@@ -68,6 +71,7 @@
           <div id="w-error" class="welcome-error" hidden></div>
           <button class="btn primary big" type="submit">Let's go</button>
         </form>
+        </div>
       </div>
 
       <p class="welcome-note">Your name shows on every pin and note you add, so the crew knows who logged what.</p>

@@ -126,6 +126,22 @@ function showWelcome({ removed = false } = {}) {
   const setErr = m => { if (m) { err.hidden = false; err.textContent = m; } else { err.hidden = true; } };
   setErr('');
 
+  // Returning users go through the big name search; sign-up stays folded
+  // behind one button so the two paths can't be mixed up
+  const signupWrap = $('#signup-wrap');
+  const showSignupBtn = $('#show-signup');
+  if (signupWrap && showSignupBtn) {
+    const openForm = focus => {
+      showSignupBtn.hidden = true;
+      signupWrap.hidden = false;
+      if (focus) setTimeout(() => $('#w-first').focus(), 50);
+    };
+    showSignupBtn.hidden = false;
+    signupWrap.hidden = true;
+    showSignupBtn.onclick = () => openForm(true);
+    if (p) openForm(false); // rejoining with details prefilled — show them
+  }
+
   // route after a successful sign-in / sign-up
   const routeIn = (welcomeText) => {
     wrap.classList.remove('show');
