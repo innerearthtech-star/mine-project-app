@@ -474,6 +474,114 @@ function onDrawTouch(e) {
   if (e.touches.length > 1 && stroke) { stroke.line.remove(); stroke = null; }
 }
 
+// ── Follow-me road recording (owner only) ──────────────────────────
+// Start it, drive the road, hit Save — the GPS breadcrumb trail gets
+// simplified + smoothed into one clean line and saved like any stroke.
+let roadRec = null; // {pts, dist, line, wake}
+
+async function startRoadRec() {
+  if (roadRec) return;
+  if (!('geolocation' in navigator)) { toast('No GPS on this device', 'warn'); return; }
+  exitDraw();
+  startGPS();
+  roadRec = {
+    pts: [], dist: 0, wake: null,
+    line: L.polyline([], { color: drawColor, weight: 4, opacity: 0.9, dashArray: '6 8', interactive: false }).addTo(map),
+  };
+  $('#view-map').classList.add('roadrec');
+  updateRoadRecMsg();
+  if (myPos) roadRecAdd(myPos); // seed with the current fix
+  acquireWake();
+  toast("Drive the road — I'll trace it. Keep the app open and the screen on.", 'ok');
+}
+
+// keep the screen awake while recording (best-effort; iOS 16.4+)
+async function acquireWake() {
+  if (!roadRec || !navigator.wakeLock) return;
+  try {
+    roadRec.wake = await navigator.wakeLock.request('screen');
+    roadRec.wake.addEventListener('release', () => { if (roadRec) roadRec.wake = null; });
+  } catch { /* screen will dim on its own schedule */ }
+}
+
+function roadRecAdd(pos) {
+  if (!roadRec) return;
+  if (pos.accuracy > 40) return; // junk fix — wait for a clean one
+  const last = roadRec.pts[roadRec.pts.length - 1];
+  if (last) {
+    const d = haversineM(last, pos);
+    // ignore GPS jitter while sitting still; record every ~6m+ of travel
+    if (d < Math.max(6, pos.accuracy / 4)) return;
+    roadRec.dist += d;
+  }
+  roadRec.pts.push({ lat: pos.lat, lng: pos.lng });
+  roadRec.line.setLatLngs(roadRec.pts);
+  updateRoadRecMsg();
+}
+
+function updateRoadRecMsg() {
+  const el = $('#roadrec-msg');
+  if (el && roadRec) el.textContent = `Recording road · ${fmtDist(roadRec.dist)}`;
+}
+
+async function stopRoadRec(saveIt) {
+  const r = roadRec;
+  if (!r) return;
+  roadRec = null;
+  r.line.remove();
+  try { r.wake && r.wake.release(); } catch { /* already gone */ }
+  $('#view-map').classList.remove('roadrec');
+  if (!saveIt) { toast('Recording discarded', 'ok'); return; }
+  if (r.pts.length < 2) { toast('Not enough movement to make a road yet', 'warn'); return; }
+  // straighten the jitter out, then round the corners
+  const pts = chaikin(simplifyDP(r.pts, 8), 2)
+    .map(p => [+p.lat.toFixed(6), +p.lng.toFixed(6)]);
+  await newDrawing(pts, drawColor);
+  renderDrawings();
+  toast(`Road saved — ${fmtDist(r.dist)}`, 'ok');
+}
+
+// Douglas-Peucker in meters (equirectangular is plenty at road scale)
+function simplifyDP(pts, tolM) {
+  if (pts.length < 3) return pts;
+  const lat0 = (pts[0].lat * Math.PI) / 180;
+  const mx = 111320 * Math.cos(lat0), my = 110540;
+  const P = pts.map(p => ({ x: (p.lng - pts[0].lng) * mx, y: (p.lat - pts[0].lat) * my }));
+  const keep = new Uint8Array(pts.length);
+  keep[0] = keep[pts.length - 1] = 1;
+  const stack = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop();
+    let maxD = 0, idx = -1;
+    const ax = P[a].x, ay = P[a].y;
+    const dx = P[b].x - ax, dy = P[b].y - ay;
+    const len2 = dx * dx + dy * dy || 1;
+    for (let i = a + 1; i < b; i++) {
+      const t = Math.max(0, Math.min(1, ((P[i].x - ax) * dx + (P[i].y - ay) * dy) / len2));
+      const ex = ax + t * dx - P[i].x, ey = ay + t * dy - P[i].y;
+      const d = ex * ex + ey * ey;
+      if (d > maxD) { maxD = d; idx = i; }
+    }
+    if (Math.sqrt(maxD) > tolM) { keep[idx] = 1; stack.push([a, idx], [idx, b]); }
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+
+// Chaikin corner-cutting: each pass replaces corners with two gentler ones
+function chaikin(pts, iters) {
+  for (let k = 0; k < iters && pts.length > 2; k++) {
+    const out = [pts[0]];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      out.push({ lat: a.lat * 0.75 + b.lat * 0.25, lng: a.lng * 0.75 + b.lng * 0.25 });
+      out.push({ lat: a.lat * 0.25 + b.lat * 0.75, lng: a.lng * 0.25 + b.lng * 0.75 });
+    }
+    out.push(pts[pts.length - 1]);
+    pts = out;
+  }
+  return pts;
+}
+
 async function undoDrawing() {
   // only this session's strokes — a stray Undo tap must never silently
   // eat a line sketched days ago (tap the line itself to erase those)
@@ -494,6 +602,7 @@ function startGPS() {
     pos => {
       myPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
       drawMyPos();
+      roadRecAdd(myPos); // no-op unless a road recording is running
     },
     err => {
       // A denied watch never resumes; clear it so the locate button can
@@ -625,6 +734,18 @@ function wireControls() {
   // Draw mode (owner only — the button stays hidden for everyone else)
   $('#btn-draw').onclick = enterDraw;
   $('#draw-done').onclick = exitDraw;
+  $('#draw-follow').onclick = startRoadRec;
+  $('#roadrec-save').onclick = () => stopRoadRec(true);
+  $('#roadrec-cancel').onclick = async () => {
+    // a whole drive could be riding on this — ask before throwing it out
+    if (await confirmDlg('Throw away this road recording?', { okText: 'Discard', danger: true })) {
+      stopRoadRec(false);
+    }
+  };
+  // wake lock drops whenever the app is backgrounded — grab it again
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && roadRec && !roadRec.wake) acquireWake();
+  });
   // leaving the Map tab ends draw mode (discarding any half stroke) so
   // the map never sits hidden with dragging off and listeners live
   $$('.tab-btn').forEach(b => {

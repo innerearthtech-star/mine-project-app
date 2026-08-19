@@ -167,6 +167,15 @@
             <button class="btn small primary" id="draw-done">✓ Done</button>
           </div>
           <div class="draw-hint">One finger draws · two fingers zoom the map · tap a line later to erase it</div>
+          <button class="btn draw-follow" id="draw-follow">◉ Follow me — record the road as you drive</button>
+        </div>
+
+        <!-- follow-me road recording (owner only) -->
+        <div id="roadrec-bar">
+          <span class="rec-dot"></span>
+          <span id="roadrec-msg">Recording road</span>
+          <button class="btn small ghost" id="roadrec-cancel">✕ Discard</button>
+          <button class="btn small primary" id="roadrec-save">■ Save road</button>
         </div>
 
         <button id="map-info" title="Map credits">i</button>
