@@ -67,6 +67,7 @@ export async function openWell(id) {
       <button class="btn small ghost" id="w-move">${ic('move')} Move pin</button>
       ${isWell && S.owner ? `<button class="btn small ${b.seals_set ? 'primary' : 'ghost'}" id="w-seals">${ic('check')} Seals set</button>
       <button class="btn small ${b.status === 'clear' ? 'status-on-clear' : 'ghost'}" id="w-clear">● Clear</button>
+      <button class="btn small ${b.status === 'partial' ? 'status-on-partial' : 'ghost'}" id="w-partial" title="Partially obstructed">● Partial</button>
       <button class="btn small ${b.status === 'obstructed' ? 'status-on-obst' : 'ghost'}" id="w-obst">● Obstructed</button>` : ''}
       ${S.owner ? `<button class="btn small danger-ghost" id="w-delete">${ic('trash')} Delete</button>` : ''}
     </div>
@@ -224,11 +225,13 @@ export async function openWell(id) {
     const cur = findRow('boreholes', id);
     const val = cur.status === next ? null : next;
     await save('boreholes', { ...cur, status: val });
-    const cBtn = $('#w-clear', el), oBtn = $('#w-obst', el);
+    const cBtn = $('#w-clear', el), oBtn = $('#w-obst', el), pBtn = $('#w-partial', el);
     cBtn.classList.toggle('status-on-clear', val === 'clear');
     cBtn.classList.toggle('ghost', val !== 'clear');
     oBtn.classList.toggle('status-on-obst', val === 'obstructed');
     oBtn.classList.toggle('ghost', val !== 'obstructed');
+    pBtn.classList.toggle('status-on-partial', val === 'partial');
+    pBtn.classList.toggle('ghost', val !== 'partial');
     const badge = $('#w-status-badge', el);
     badge.hidden = !val;
     badge.textContent = `● ${val || ''}`;
@@ -239,6 +242,8 @@ export async function openWell(id) {
   if (clearBtn) clearBtn.onclick = () => setStatus('clear');
   const obstBtn = $('#w-obst', el);
   if (obstBtn) obstBtn.onclick = () => setStatus('obstructed');
+  const partialBtn = $('#w-partial', el);
+  if (partialBtn) partialBtn.onclick = () => setStatus('partial');
 
   // delete (owner only)
   const delBtn = $('#w-delete', el);

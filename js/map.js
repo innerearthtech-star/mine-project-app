@@ -125,7 +125,8 @@ function pinIcon(b) {
   // clear/obstructed (owner-set) colors the pin body green/red for the
   // whole crew; seals set keeps its check emblem on top of whichever color
   const statusFill = b.status === 'clear' ? '#35d073'
-    : b.status === 'obstructed' ? '#ff5252' : null;
+    : b.status === 'obstructed' ? '#ff5252'
+    : b.status === 'partial' ? '#ffe14d' : null;
   const body = b.seals_set
     ? `<path d="M15 1C7.8 1 2 6.9 2 14.2 2 24.5 15 38 15 38S28 24.5 28 14.2C28 6.9 22.2 1 15 1z"
              fill="${statusFill || '#8b98a5'}" stroke="#00000055" stroke-width="1.5"/>
