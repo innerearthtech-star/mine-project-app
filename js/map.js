@@ -122,16 +122,18 @@ function pinIcon(b) {
         </div>`,
     });
   }
-  // seals set = gray pin with a check, so the whole crew can see at a
-  // glance which holes are finished in the mine
+  // clear/obstructed (owner-set) colors the pin body green/red for the
+  // whole crew; seals set keeps its check emblem on top of whichever color
+  const statusFill = b.status === 'clear' ? '#35d073'
+    : b.status === 'obstructed' ? '#ff5252' : null;
   const body = b.seals_set
     ? `<path d="M15 1C7.8 1 2 6.9 2 14.2 2 24.5 15 38 15 38S28 24.5 28 14.2C28 6.9 22.2 1 15 1z"
-             fill="#8b98a5" stroke="#00000055" stroke-width="1.5"/>
+             fill="${statusFill || '#8b98a5'}" stroke="#00000055" stroke-width="1.5"/>
        <circle cx="15" cy="14" r="6" fill="#0b0f14"/>
        <path d="M11.5 14.2l2.4 2.4 4.6-4.8" fill="none" stroke="#8ff0b4" stroke-width="2.2"
              stroke-linecap="round" stroke-linejoin="round"/>`
     : `<path d="M15 1C7.8 1 2 6.9 2 14.2 2 24.5 15 38 15 38S28 24.5 28 14.2C28 6.9 22.2 1 15 1z"
-             fill="var(--pin)" stroke="#00000055" stroke-width="1.5"/>
+             fill="${statusFill || 'var(--pin)'}" stroke="#00000055" stroke-width="1.5"/>
        <circle cx="15" cy="14" r="5.5" fill="#0b0f14"/>`;
   return L.divIcon({
     className: 'pin-wrap',
@@ -160,15 +162,17 @@ function popupHTML(b) {
     + row('Bottom of casing', b.casing_bottom)
     + row('Mine floor', b.mine_floor);
   return `<div class="pin-pop">
-    <div class="pin-pop-name">${esc(b.name)}${b.seals_set ? ' <span class="seals-tag">✓ seals set</span>' : ''}</div>
+    <div class="pin-pop-name">${esc(b.name)}${b.seals_set ? ' <span class="seals-tag">✓ seals set</span>' : ''}${statusTag(b)}</div>
     ${rows || `<div class="pin-pop-empty">No well data yet</div>`}
     <button class="pin-pop-open" data-open="${b.id}">Open well ›</button>
   </div>`;
 }
 
 function markerSig(b) {
-  return `${b.name}|${b.kind || 'well'}|${b.lat}|${b.lng}|${b.seals_set ? 1 : 0}|${b.roof_level || ''}|${b.casing_bottom || ''}|${b.mine_floor || ''}`;
+  return `${b.name}|${b.kind || 'well'}|${b.lat}|${b.lng}|${b.seals_set ? 1 : 0}|${b.status || ''}|${b.roof_level || ''}|${b.casing_bottom || ''}|${b.mine_floor || ''}`;
 }
+const statusTag = b => (b.status
+  ? ` <span class="status-tag ${b.status}">● ${b.status}</span>` : '');
 
 // (re)bind every "Open well" button in a popup (pad popups have several)
 function wirePopupBtn(popup) {
@@ -207,7 +211,7 @@ function padPopupHTML(group) {
     <div class="pin-pop-name">${sorted.length} wells on this pad</div>
     ${sorted.map(b => `
       <button class="pad-row" data-open="${b.id}">
-        <span>${esc(b.name)}${b.seals_set ? ' <span class="seals-tag">✓</span>' : ''}</span>
+        <span>${esc(b.name)}${b.seals_set ? ' <span class="seals-tag">✓</span>' : ''}${statusTag(b)}</span>
         <span class="pad-open">Open ›</span>
       </button>`).join('')}
   </div>`;

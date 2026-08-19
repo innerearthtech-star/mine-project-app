@@ -30,7 +30,7 @@ export async function openWell(id) {
   const el = sheet(`
     <div class="well-head">
       <div class="well-head-main">
-        <h3 class="well-name">${esc(b.name)}<span id="w-seals-badge" class="seals-tag" ${b.seals_set ? '' : 'hidden'}>✓ seals set</span>
+        <h3 class="well-name">${esc(b.name)}<span id="w-seals-badge" class="seals-tag" ${b.seals_set ? '' : 'hidden'}>✓ seals set</span><span id="w-status-badge" class="status-tag ${b.status || ''}" ${b.status ? '' : 'hidden'}>● ${b.status || ''}</span>
           <button class="icon-btn" id="w-rename" title="Rename">${ic('pencil')}</button></h3>
         <div class="well-meta">Added by ${esc(b.created_by || '?')} · ${fmtDateTime(b.created_at)}</div>
         <div class="well-meta mono">${b.lat.toFixed(6)}, ${b.lng.toFixed(6)}</div>
@@ -65,7 +65,9 @@ export async function openWell(id) {
 
     <div class="well-tools">
       <button class="btn small ghost" id="w-move">${ic('move')} Move pin</button>
-      ${isWell && S.owner ? `<button class="btn small ${b.seals_set ? 'primary' : 'ghost'}" id="w-seals">${ic('check')} Seals set</button>` : ''}
+      ${isWell && S.owner ? `<button class="btn small ${b.seals_set ? 'primary' : 'ghost'}" id="w-seals">${ic('check')} Seals set</button>
+      <button class="btn small ${b.status === 'clear' ? 'status-on-clear' : 'ghost'}" id="w-clear">● Clear</button>
+      <button class="btn small ${b.status === 'obstructed' ? 'status-on-obst' : 'ghost'}" id="w-obst">● Obstructed</button>` : ''}
       ${S.owner ? `<button class="btn small danger-ghost" id="w-delete">${ic('trash')} Delete</button>` : ''}
     </div>
 
@@ -214,6 +216,29 @@ export async function openWell(id) {
     sealsBtn.classList.toggle('ghost', !turningOn);
     toast(turningOn ? `${cur.name}: seals set ✓` : `${cur.name}: mark removed`, 'ok');
   };
+
+  // clear / obstructed (owner only) — colors the pin green/red for
+  // everyone; tapping the active one switches it back off. No confirm:
+  // this flips often as holes get checked, so it stays one tap.
+  const setStatus = async next => {
+    const cur = findRow('boreholes', id);
+    const val = cur.status === next ? null : next;
+    await save('boreholes', { ...cur, status: val });
+    const cBtn = $('#w-clear', el), oBtn = $('#w-obst', el);
+    cBtn.classList.toggle('status-on-clear', val === 'clear');
+    cBtn.classList.toggle('ghost', val !== 'clear');
+    oBtn.classList.toggle('status-on-obst', val === 'obstructed');
+    oBtn.classList.toggle('ghost', val !== 'obstructed');
+    const badge = $('#w-status-badge', el);
+    badge.hidden = !val;
+    badge.textContent = `● ${val || ''}`;
+    badge.className = `status-tag ${val || ''}`;
+    toast(val ? `${cur.name}: ${val}` : `${cur.name}: status off`, 'ok');
+  };
+  const clearBtn = $('#w-clear', el);
+  if (clearBtn) clearBtn.onclick = () => setStatus('clear');
+  const obstBtn = $('#w-obst', el);
+  if (obstBtn) obstBtn.onclick = () => setStatus('obstructed');
 
   // delete (owner only)
   const delBtn = $('#w-delete', el);

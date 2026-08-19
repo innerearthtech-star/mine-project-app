@@ -98,10 +98,10 @@ async function pushOutbox() {
       continue;
     }
     const code = String(error.code || '');
-    // Table not created yet (the app updated before the owner ran the new
-    // SQL): keep the row for later without counting an attempt, and let
-    // the rest of the queue keep flowing.
-    if (code === '42P01' || code === 'PGRST205') continue;
+    // Table or column not created yet (the app updated before the owner
+    // ran the new SQL): keep the row for later without counting an
+    // attempt, and let the rest of the queue keep flowing.
+    if (code === '42P01' || code === 'PGRST205' || code === 'PGRST204') continue;
     // Only definitive data errors (Postgres constraint/data/syntax classes,
     // PostgREST request + schema-cache errors like a missing column) count
     // toward the drop limit. Anything else — 5xx, rate limits, HTML error
