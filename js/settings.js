@@ -1,11 +1,11 @@
 // ── Settings tab: project name, profile, connection, owner unlock ──
 
-import { $, $$, esc, on, toast, confirmDlg, modalForm, sha256hex, fmtTime, formatPhone, normalizePhone } from './util.js';
+import { $, $$, esc, on, toast, confirmDlg, modalForm, sha256hex, fmtTime, formatPhone, normalizePhone, download, ymd } from './util.js';
 import { CONFIG } from './config.js';
 import {
   S, projectName, saveProfile, unlockOwner, lockOwner, activeUsers, removeUser, setUserPin,
   setUserVideoPermission, canIGrant, pendingUsers, setUserApproved, setUserGrantPermission,
-  setUserJobPermission, setUserUploadPermission,
+  setUserJobPermission, setUserUploadPermission, activeWells,
 } from './store.js';
 import { syncState, kick } from './sync.js';
 
@@ -100,6 +100,13 @@ export function renderSettings() {
         : `<div class="setting-hint">Supabase isn't configured yet — pins and notes stay on this phone. See SETUP.md.</div>`}
     </section>
 
+    <section class="card">
+      <h4>Well data export</h4>
+      <div class="setting-hint">Every borehole with its depths — roof level, bottom of casing,
+      mine floor — plus status and location. Opens in Excel; send it to anyone.</div>
+      <button class="btn small primary" id="s-wells-csv">⬇ Download well data (CSV)</button>
+    </section>
+
     ${(S.owner || (S.profile.phone === CONFIG.OWNER_PHONE)) ? `
     <section class="card">
       <h4>Admin tools</h4>
@@ -127,6 +134,25 @@ export function renderSettings() {
       <span class="muted">Built by Inner Earth Tech 😏</span></div>
     </section>
   `;
+
+  // Well data CSV — depths for every borehole, ready to hand to anyone
+  $('#s-wells-csv').onclick = () => {
+    const wells = activeWells();
+    if (!wells.length) { toast('No boreholes yet', 'warn'); return; }
+    const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const row = (...c) => c.map(q).join(',');
+    const statusWord = s => (s === 'partial' ? 'Partially obstructed'
+      : s === 'clear' ? 'Clear' : s === 'obstructed' ? 'Obstructed' : '');
+    const lines = [row('Borehole', 'Roof level', 'Bottom of casing', 'Mine floor',
+      'Status', 'Seals set', 'Latitude', 'Longitude', 'Added by')];
+    for (const b of wells) {
+      lines.push(row(b.name, b.roof_level || '', b.casing_bottom || '', b.mine_floor || '',
+        statusWord(b.status), b.seals_set ? 'Yes' : '', b.lat.toFixed(6), b.lng.toFixed(6), b.created_by || ''));
+    }
+    const proj = projectName().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    download(`${proj}-well-data-${ymd(new Date())}.csv`, lines.join('\r\n'));
+    toast(`Well data for ${wells.length} borehole${wells.length === 1 ? '' : 's'} downloaded`, 'ok');
+  };
 
   $('#s-name').onclick = async () => {
     const res = await modalForm({
