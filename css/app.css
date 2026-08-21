@@ -403,6 +403,19 @@ main { flex: 1; position: relative; min-height: 0; }
 .rep-table tbody tr:nth-child(even) { background: #f7f9fb; }
 .rep-name { font-weight: 700; }
 .rep-foot { color: #8a94a0; font-size: 11px; margin-top: 18px; }
+.rep-stats {
+  display: flex; flex-wrap: wrap; gap: 6px 18px;
+  background: #f2f6fa; border-radius: 8px; padding: 10px 14px;
+  margin-top: 12px; font-size: 13px; color: #3a4652;
+}
+.rep-sec {
+  margin-top: 22px; font-size: 15px; font-weight: 800;
+  border-bottom: 2px solid #e2e7ec; padding-bottom: 5px;
+}
+.rep-note { border-bottom: 1px solid #e8ebef; padding: 9px 2px; }
+.rep-note-head { font-size: 12.5px; color: #5c6773; }
+.rep-note-text { margin-top: 4px; font-size: 14px; white-space: pre-wrap; }
+.rep-empty { color: #8a94a0; padding: 26px 0; font-size: 14px; }
 
 @page { margin: 12mm; }
 @media print {

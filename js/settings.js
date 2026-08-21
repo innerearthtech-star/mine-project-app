@@ -8,7 +8,7 @@ import {
   setUserJobPermission, setUserUploadPermission, activeWells,
 } from './store.js';
 import { syncState, kick } from './sync.js';
-import { openWellReport } from './report.js';
+import { openWellReport, openDailyReport } from './report.js';
 
 export function initSettings() {
   on('sync', renderSettings);
@@ -102,10 +102,11 @@ export function renderSettings() {
     </section>
 
     <section class="card">
-      <h4>Well data export</h4>
-      <div class="setting-hint">A clean report page with every borehole's depths and status —
-      ready to print, save as PDF, or hand to anyone. The CSV is the same data raw, for Excel.</div>
+      <h4>Exports</h4>
+      <div class="setting-hint">Print-ready pages you can save as a PDF and hand to anyone:
+      the well depth sheet, or a day's activity (pick any date). The CSV is raw well data for Excel.</div>
       <button class="btn small primary" id="s-wells-report">📄 Well report</button>
+      <button class="btn small primary" id="s-daily-report">🗓 Daily overview</button>
       <button class="btn small" id="s-wells-csv">⬇ CSV for Excel</button>
     </section>
 
@@ -138,6 +139,17 @@ export function renderSettings() {
   `;
 
   $('#s-wells-report').onclick = () => openWellReport();
+
+  $('#s-daily-report').onclick = async () => {
+    const res = await modalForm({
+      title: 'Daily overview',
+      fields: [{ name: 'date', label: 'Which day?', type: 'date', value: ymd(new Date()), required: true }],
+      okText: 'Open report',
+    });
+    if (!res) return;
+    if (isNaN(new Date(res.date + 'T12:00'))) { toast('Pick a valid date', 'warn'); return; }
+    openDailyReport(res.date);
+  };
 
   // Well data CSV — depths for every borehole, ready to hand to anyone
   $('#s-wells-csv').onclick = () => {
