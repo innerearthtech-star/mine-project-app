@@ -5,7 +5,7 @@
 // - Uploaded photos cached after first view
 // - Supabase API calls always go to the network (sync.js queues offline)
 
-const VERSION = 'v55';
+const VERSION = 'v56';
 const SHELL_CACHE = `shell-${VERSION}`;
 const TILE_CACHE = 'tiles-v1';
 const PHOTO_CACHE = 'photos-v1';
@@ -84,6 +84,9 @@ async function trim(cache, max) {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
+
+  // server endpoints (report feed) — live data, never cached
+  if (url.pathname.startsWith('/api/')) return;
 
   // Supabase API / realtime — never intercept
   if (url.hostname.endsWith('.supabase.co')) {
