@@ -33,7 +33,7 @@ export async function openWell(id) {
   const el = sheet(`
     <div class="well-head">
       <div class="well-head-main">
-        <h3 class="well-name">${esc(b.name)}<span id="w-seals-badge" class="seals-tag" ${b.seals_set ? '' : 'hidden'}>✓ seals set</span><span id="w-status-badge" class="status-tag ${b.status || ''}" ${b.status ? '' : 'hidden'}>● ${statusLabel(b.status)}</span>
+        <h3 class="well-name">${esc(b.name)}<span id="w-seals-badge" class="seals-tag" ${b.seals_set ? '' : 'hidden'}>✓ seals set</span><span id="w-status-badge" class="status-tag ${b.status || ''}" ${b.status ? '' : 'hidden'}>● ${statusLabel(b.status)}</span><span id="w-monitor-badge" class="status-tag monitor" ${b.monitor ? '' : 'hidden'}>Ⓜ monitor hole</span>
           <button class="icon-btn" id="w-rename" title="Rename">${ic('pencil')}</button></h3>
         <div class="well-meta">Added by ${esc(b.created_by || '?')} · ${fmtDateTime(b.created_at)}</div>
         <div class="well-meta mono">${b.lat.toFixed(6)}, ${b.lng.toFixed(6)}</div>
@@ -71,7 +71,8 @@ export async function openWell(id) {
       ${isWell && S.owner ? `<button class="btn small ${b.seals_set ? 'primary' : 'ghost'}" id="w-seals">${ic('check')} Seals set</button>
       <button class="btn small ${b.status === 'clear' ? 'status-on-clear' : 'ghost'}" id="w-clear">● Clear</button>
       <button class="btn small ${b.status === 'partial' ? 'status-on-partial' : 'ghost'}" id="w-partial">● Partially obstructed</button>
-      <button class="btn small ${b.status === 'obstructed' ? 'status-on-obst' : 'ghost'}" id="w-obst">● Obstructed</button>` : ''}
+      <button class="btn small ${b.status === 'obstructed' ? 'status-on-obst' : 'ghost'}" id="w-obst">● Obstructed</button>
+      <button class="btn small ${b.monitor ? 'status-on-monitor' : 'ghost'}" id="w-monitor">Ⓜ Monitor hole</button>` : ''}
       ${S.owner ? `<button class="btn small danger-ghost" id="w-delete">${ic('trash')} Delete</button>` : ''}
     </div>
 
@@ -247,6 +248,19 @@ export async function openWell(id) {
   if (obstBtn) obstBtn.onclick = () => setStatus('obstructed');
   const partialBtn = $('#w-partial', el);
   if (partialBtn) partialBtn.onclick = () => setStatus('partial');
+
+  // monitor hole (owner only) — an add-on mark that stacks with the
+  // clear/partial/obstructed color and the seals check
+  const monitorBtn = $('#w-monitor', el);
+  if (monitorBtn) monitorBtn.onclick = async () => {
+    const cur = findRow('boreholes', id);
+    const val = !cur.monitor;
+    await save('boreholes', { ...cur, monitor: val });
+    monitorBtn.classList.toggle('status-on-monitor', val);
+    monitorBtn.classList.toggle('ghost', !val);
+    $('#w-monitor-badge', el).hidden = !val;
+    toast(val ? `${cur.name}: monitor hole` : `${cur.name}: monitor mark off`, 'ok');
+  };
 
   // delete (owner only)
   const delBtn = $('#w-delete', el);

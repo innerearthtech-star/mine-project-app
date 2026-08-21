@@ -136,13 +136,20 @@ function pinIcon(b) {
     : `<path d="M15 1C7.8 1 2 6.9 2 14.2 2 24.5 15 38 15 38S28 24.5 28 14.2C28 6.9 22.2 1 15 1z"
              fill="${statusFill || 'var(--pin)'}" stroke="#00000055" stroke-width="1.5"/>
        <circle cx="15" cy="14" r="5.5" fill="#0b0f14"/>`;
+  // monitor hole = purple "M" badge riding the pin's shoulder, so it
+  // stacks visually with any status color and the seals check
+  const monitor = b.monitor
+    ? `<circle cx="24" cy="7" r="6" fill="#8f5bff" stroke="#0b0f14" stroke-width="1.4"/>
+       <text x="24" y="10" text-anchor="middle" fill="#fff" font-size="8.5"
+             font-weight="800" font-family="sans-serif">M</text>`
+    : '';
   return L.divIcon({
     className: 'pin-wrap',
     iconSize: [30, 40],
     iconAnchor: [15, 38],
     html: `
       <div class="pin">
-        <svg viewBox="0 0 30 40" width="30" height="40">${body}</svg>
+        <svg viewBox="0 0 30 40" width="30" height="40">${body}${monitor}</svg>
         <span class="pin-label">${esc(b.name)}</span>
       </div>`,
   });
@@ -170,10 +177,11 @@ function popupHTML(b) {
 }
 
 function markerSig(b) {
-  return `${b.name}|${b.kind || 'well'}|${b.lat}|${b.lng}|${b.seals_set ? 1 : 0}|${b.status || ''}|${b.roof_level || ''}|${b.casing_bottom || ''}|${b.mine_floor || ''}`;
+  return `${b.name}|${b.kind || 'well'}|${b.lat}|${b.lng}|${b.seals_set ? 1 : 0}|${b.monitor ? 1 : 0}|${b.status || ''}|${b.roof_level || ''}|${b.casing_bottom || ''}|${b.mine_floor || ''}`;
 }
 const statusTag = b => (b.status
-  ? ` <span class="status-tag ${b.status}">● ${b.status === 'partial' ? 'partially obstructed' : b.status}</span>` : '');
+  ? ` <span class="status-tag ${b.status}">● ${b.status === 'partial' ? 'partially obstructed' : b.status}</span>` : '')
+  + (b.monitor ? ' <span class="status-tag monitor">Ⓜ monitor hole</span>' : '');
 
 // (re)bind every "Open well" button in a popup (pad popups have several)
 function wirePopupBtn(popup) {

@@ -14,7 +14,8 @@ create table if not exists boreholes (
   mine_floor text,
   seals_set boolean default false,    -- owner marks: temp seals completed in the mine
   kind text default 'well',           -- 'well' or 'place' (school, office, gate…)
-  status text,                        -- owner marks: null | 'clear' | 'obstructed'
+  status text,                        -- owner marks: null | 'clear' | 'partial' | 'obstructed'
+  monitor boolean default false,      -- owner marks: monitor hole (stacks with the rest)
   created_by text,
   author_id text,
   created_at timestamptz default now(),
@@ -27,7 +28,8 @@ alter table boreholes add column if not exists casing_bottom text;
 alter table boreholes add column if not exists mine_floor text;
 alter table boreholes add column if not exists seals_set boolean default false;
 alter table boreholes add column if not exists kind text default 'well';
-alter table boreholes add column if not exists status text; -- null | 'clear' | 'obstructed'
+alter table boreholes add column if not exists status text; -- null | 'clear' | 'partial' | 'obstructed'
+alter table boreholes add column if not exists monitor boolean default false;
 
 -- Shared: notes on each borehole (photos = array of storage paths)
 create table if not exists notes (

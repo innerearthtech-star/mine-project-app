@@ -160,10 +160,11 @@ export function renderSettings() {
     const statusWord = s => (s === 'partial' ? 'Partially obstructed'
       : s === 'clear' ? 'Clear' : s === 'obstructed' ? 'Obstructed' : '');
     const lines = [row('Borehole', 'Roof level', 'Bottom of casing', 'Mine floor',
-      'Status', 'Seals set', 'Latitude', 'Longitude', 'Added by')];
+      'Status', 'Seals set', 'Monitor hole', 'Latitude', 'Longitude', 'Added by')];
     for (const b of wells) {
       lines.push(row(b.name, b.roof_level || '', b.casing_bottom || '', b.mine_floor || '',
-        statusWord(b.status), b.seals_set ? 'Yes' : '', b.lat.toFixed(6), b.lng.toFixed(6), b.created_by || ''));
+        statusWord(b.status), b.seals_set ? 'Yes' : '', b.monitor ? 'Yes' : '',
+        b.lat.toFixed(6), b.lng.toFixed(6), b.created_by || ''));
     }
     const proj = projectName().toLowerCase().replace(/[^a-z0-9]+/g, '-');
     download(`${proj}-well-data-${ymd(new Date())}.csv`, lines.join('\r\n'));

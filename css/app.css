@@ -364,9 +364,11 @@ main { flex: 1; position: relative; min-height: 0; }
 .status-tag.clear { background: #123f26; color: #52e695; }
 .status-tag.obstructed { background: #46151a; color: #ff8087; }
 .status-tag.partial { background: #453a0e; color: #ffe14d; }
+.status-tag.monitor { background: #291b47; color: #c9a6ff; }
 .status-on-clear { background: #1e9c55; border-color: #1e9c55; color: #fff; }
 .status-on-obst { background: #c0392b; border-color: #c0392b; color: #fff; }
 .status-on-partial { background: #d9b616; border-color: #d9b616; color: #141005; }
+.status-on-monitor { background: #8f5bff; border-color: #8f5bff; color: #fff; }
 .well-tools { flex-wrap: wrap; }
 
 /* ── Well report: white print-ready page ────────────────────────── */
