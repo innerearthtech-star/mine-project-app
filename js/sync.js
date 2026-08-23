@@ -91,6 +91,7 @@ export async function kick() {
 
 async function pushOutbox() {
   const ops = (await DB.all('outbox')).sort((a, b) => (a.ts - b.ts) || ((a.seq || 0) - (b.seq || 0)));
+  let transientErr = null;
   for (const op of ops) {
     const { error } = await client.from(op.table).upsert(op.row);
     if (!error) {
@@ -105,10 +106,16 @@ async function pushOutbox() {
     // Only definitive data errors (Postgres constraint/data/syntax classes,
     // PostgREST request + schema-cache errors like a missing column) count
     // toward the drop limit. Anything else — 5xx, rate limits, HTML error
-    // pages, paused project, offline — is transient: stop and retry next
-    // cycle so field data is never discarded.
+    // pages, paused project, a request the network keeps killing — is
+    // transient: keep the row and retry next cycle, but DON'T stall the
+    // rest of the queue behind it (Safari's "Load failed" on one bigger
+    // row was jamming every write on the phone). Out-of-order arrival is
+    // safe: last-write-wins timestamps decide on both ends.
     const isDataError = /^(22|23|42)\d{3}$/.test(code) || /^PGRST[12]\d\d$/.test(code);
-    if (!isDataError) throw new Error(`push failed (will retry): ${error.message}`);
+    if (!isDataError) {
+      transientErr = transientErr || `push ${op.table} failed (will retry): ${error.message}`;
+      continue;
+    }
     op.attempts = (op.attempts || 0) + 1;
     if (op.attempts >= 5) {
       console.error('dropping unsyncable row after 5 attempts', op, error);
@@ -120,10 +127,12 @@ async function pushOutbox() {
       // (e.g. a depth edit before the DB columns exist shouldn't stall pins)
     }
   }
+  if (transientErr) throw new Error(transientErr);
 }
 
 async function uploadPhotos() {
   const photos = (await DB.all('photos')).filter(p => !p.uploaded);
+  let netErr = null;
   for (const p of photos) {
     const { error } = await client.storage.from('photos')
       .upload(p.path, p.blob, { contentType: 'image/jpeg', upsert: true });
@@ -133,8 +142,10 @@ async function uploadPhotos() {
       continue;
     }
     const msg = (error.message || '').toLowerCase();
-    if (msg.includes('fetch') || msg.includes('network') || msg.includes('timeout')) {
-      throw new Error('offline during photo upload');
+    if (msg.includes('fetch') || msg.includes('network') || msg.includes('timeout') || msg.includes('load failed')) {
+      // network killed this one — try the rest anyway, retry it next cycle
+      netErr = netErr || `photo upload failed (will retry): ${error.message}`;
+      continue;
     }
     // Data problem with this one photo — don't let it block the others.
     p.attempts = (p.attempts || 0) + 1;
@@ -147,6 +158,7 @@ async function uploadPhotos() {
       syncState.error = `photo upload failed: ${error.message}`;
     }
   }
+  if (netErr) throw new Error(netErr);
 }
 
 // Uploaded photo blobs older than a week come out of local storage — the
